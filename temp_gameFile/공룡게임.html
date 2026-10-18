@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CHICK RUNNER</title>
+<style>
+  :root {
+    --navy-deep: #12172A;
+    --navy: #1B2138;
+    --navy-light: #262E4C;
+    --sand: #F2B84B;
+    --sand-dim: #C99B3E;
+    --coral: #FF6B4A;
+    --sage: #6E8B5A;
+    --sage-dark: #4F6B3E;
+    --bone: #F5EFE3;
+    --bone-dim: rgba(245,239,227,0.55);
+    --line: rgba(245,239,227,0.14);
+    --font-display: 'Courier New', Courier, monospace;
+    --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--navy-deep);
+    color: var(--bone);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 28px 16px;
+  }
+
+  .cabinet {
+    width: 100%;
+    max-width: 920px;
+    border: 2px solid var(--line);
+    border-radius: 6px 6px 18px 18px;
+    background: var(--navy);
+    overflow: hidden;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.6);
+  }
+
+  .marquee {
+    background: linear-gradient(180deg, var(--sand) 0%, #D89C2A 100%);
+    padding: 16px 22px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    row-gap: 6px;
+    border-bottom: 2px solid var(--line);
+  }
+
+  .marquee h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(18px, 3.4vw, 26px);
+    letter-spacing: 3px;
+    color: var(--navy-deep);
+    font-weight: 900;
+  }
+
+  .readout {
+    font-family: var(--font-display);
+    font-size: clamp(14px, 2.6vw, 18px);
+    color: var(--navy-deep);
+    display: flex;
+    gap: 18px;
+    font-weight: 700;
+  }
+
+  .readout span.label {
+    opacity: 0.65;
+    margin-right: 6px;
+    font-weight: 400;
+  }
+
+  .screen-wrap {
+    padding: 18px 18px 6px;
+  }
+
+  .screen-bezel {
+    position: relative;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 3px solid var(--navy-light);
+    box-shadow: inset 0 0 0 2px rgba(0,0,0,0.35), inset 0 8px 24px rgba(0,0,0,0.35);
+    background: #000;
+  }
+
+  #gameCanvas {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 10px;
+    background: rgba(18,23,42,0.55);
+    text-align: center;
+    padding: 20px;
+    pointer-events: none;
+  }
+
+  .overlay.hidden { display: none; }
+
+  .overlay .big {
+    font-family: var(--font-display);
+    font-size: clamp(16px, 3vw, 22px);
+    letter-spacing: 1px;
+    color: var(--bone);
+    text-shadow: 0 2px 6px rgba(0,0,0,0.6);
+  }
+
+  .overlay .small {
+    font-size: 13px;
+    color: var(--bone-dim);
+  }
+
+  .controls-row {
+    padding: 16px 22px 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .controls-row .row-label {
+    font-size: 12px;
+    color: var(--bone-dim);
+    margin-right: 4px;
+  }
+
+  .scene-pill {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    padding: 7px 16px;
+    border-radius: 999px;
+    border: 1.5px solid var(--line);
+    background: transparent;
+    color: var(--bone);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  }
+
+  .scene-pill:hover { border-color: var(--sand-dim); }
+
+  .scene-pill.active {
+    background: var(--sand);
+    border-color: var(--sand);
+    color: var(--navy-deep);
+    font-weight: 700;
+  }
+
+  .scene-pill.add {
+    border-style: dashed;
+    color: var(--bone-dim);
+  }
+
+  .custom-panel {
+    margin: 0 22px 14px;
+    padding: 14px;
+    border: 1.5px dashed var(--line);
+    border-radius: 10px;
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .custom-panel.open { display: flex; }
+
+  .custom-panel .field-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .custom-panel input[type="text"] {
+    flex: 1;
+    min-width: 180px;
+    background: var(--navy-deep);
+    border: 1.5px solid var(--line);
+    border-radius: 8px;
+    padding: 9px 12px;
+    color: var(--bone);
+    font-family: var(--font-ui);
+    font-size: 13px;
+  }
+
+  .custom-panel input[type="text"]::placeholder { color: var(--bone-dim); }
+
+  .custom-panel input[type="file"] {
+    color: var(--bone-dim);
+    font-size: 12px;
+    max-width: 220px;
+  }
+
+  .btn {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: none;
+    background: var(--sand);
+    color: var(--navy-deep);
+    cursor: pointer;
+  }
+
+  .btn:hover { background: var(--sand-dim); }
+
+  .custom-hint {
+    font-size: 11.5px;
+    color: var(--bone-dim);
+    line-height: 1.5;
+  }
+
+  .footer-row {
+    padding: 4px 22px 20px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--bone-dim);
+    border-top: 1px solid var(--line);
+    margin: 10px 22px 0;
+    padding-top: 14px;
+  }
+
+  kbd {
+    font-family: var(--font-display);
+    background: var(--navy-light);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: var(--bone);
+    font-size: 11.5px;
+  }
+
+  @media (max-width: 520px) {
+    .marquee { flex-direction: column; align-items: flex-start; }
+    .footer-row { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<div class="cabinet">
+  <div class="marquee">
+    <h1>CHICK RUNNER</h1>
+    <div class="readout">
+      <span><span class="label">HI</span><span id="highScoreDisplay">00000</span></span>
+      <span><span class="label">SCORE</span><span id="scoreDisplay">00000</span></span>
+    </div>
+  </div>
+
+  <div class="screen-wrap">
+    <div class="screen-bezel">
+      <canvas id="gameCanvas"></canvas>
+      <div class="overlay" id="overlay">
+        <div class="big" id="overlayTitle">↑ 를 눌러 시작</div>
+        <div class="small" id="overlaySub">점프: ↑ / Space &nbsp;·&nbsp; 숙이기: ↓ (길게 누르기)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls-row">
+    <span class="row-label">배경</span>
+    <div id="sceneButtons" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+    <button class="scene-pill add" id="toggleCustom" type="button">+ 나만의 배경</button>
+  </div>
+
+  <div class="custom-panel" id="customPanel">
+    <div class="field-row">
+      <input type="text" id="customUrl" placeholder="이미지 URL 붙여넣기 (https://...)">
+      <button class="btn" id="applyUrl" type="button">URL 적용</button>
+    </div>
+    <div class="field-row">
+      <span class="row-label" style="align-self: center;">배경 </span>
+      <input type="file" id="customFile" accept="image/*">
+    </div>
+    <div class="field-row" style="margin-top: 4px; padding-top: 10px; border-top: 1px dashed var(--line);">
+      <span class="row-label" style="align-self: center;">음악 </span>
+      <input type="file" id="bgmFile" accept="audio/*">
+    </div>
+    <div class="custom-hint">
+      배경은 캔버스에 꽉 차게 잘려서 표시돼요. 추가한 배경은 위 목록에 계속 남아서 언제든 다시 고를 수 있어요.<br>
+      기본적으로 신나고 긴박한 내장 BGM이 자동 재생돼요. 직접 음악 파일을 올리면 그 음악이 대신 재생됩니다!
+    </div>
+  </div>
+
+  <div class="footer-row">
+    <span><kbd>↑</kbd> / <kbd>Space</kbd> 점프 &nbsp; <kbd>↓</kbd> 숙이기(홀드)</span>
+    <span>아이템 : ⬆️ 점프 강화 &nbsp;·&nbsp; ⚡ 스피드+무적 돌진</span>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const LOGICAL_W = 900;
+  const LOGICAL_H = 300;
+  const GROUND_Y = 235;
+  const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+  canvas.width = LOGICAL_W * dpr;
+  canvas.height = LOGICAL_H * dpr;
+  canvas.style.width = LOGICAL_W + 'px';
+  canvas.style.height = LOGICAL_H + 'px';
+  ctx.scale(dpr, dpr);
+
+  const overlay = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlaySub = document.getElementById('overlaySub');
+  const scoreDisplay = document.getElementById('scoreDisplay');
+  const highScoreDisplay = document.getElementById('highScoreDisplay');
+
+  const BACKGROUNDS = [];
+  const imageCache = {};
+
+  function drawDayBackground(c, w, h, t) {
+    const grad = c.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, '#BFE3F2');
+    grad.addColorStop(1, '#EAF6EE');
+    c.fillStyle = grad;
+    c.fillRect(0, 0, w, h);
+
+    // sun
+    c.fillStyle = '#FCE49A';
+    c.beginPath();
+    c.arc(w - 90, 62, 30, 0, Math.PI * 2);
+    c.fill();
+
+    // ground
+    c.fillStyle = '#DCC28A';
+    c.fillRect(0, GROUND_Y + 4, w, h - GROUND_Y - 4);
+  }
+
+  function drawDesertBackground(c, w, h, t) {
+    const grad = c.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, '#3B2A55');
+    grad.addColorStop(0.55, '#B5563C');
+    grad.addColorStop(1, '#F2B84B');
+    c.fillStyle = grad;
+    c.fillRect(0, 0, w, h);
+
+    // sun low on horizon
+    c.fillStyle = 'rgba(255,236,197,0.9)';
+    c.beginPath();
+    c.arc(w * 0.72, GROUND_Y - 60, 34, 0, Math.PI * 2);
+    c.fill();
+
+    // dune silhouette
+    c.fillStyle = 'rgba(60,30,30,0.55)';
+    c.beginPath();
+    c.moveTo(0, GROUND_Y);
+    const offset = (t * 0.01) % 60;
+    for (let x = -60; x <= w + 60; x += 60) {
+      const dx = x - offset;
+      c.quadraticCurveTo(dx + 30, GROUND_Y - 34, dx + 60, GROUND_Y);
+    }
+    c.lineTo(w, GROUND_Y);
+    c.closePath();
+    c.fill();
+
+    // ground
+    c.fillStyle = '#8A4B2E';
+    c.fillRect(0, GROUND_Y + 4, w, h - GROUND_Y - 4);
+  }
+
+  function drawSpringBackground(c, w, h, t) {
+    const grad = c.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, '#A1C4FD');
+    grad.addColorStop(1, '#FFC3A0');
+    c.fillStyle = grad;
+    c.fillRect(0, 0, w, h);
+
+    // Distant hills
+    c.fillStyle = 'rgba(255, 183, 178, 0.7)';
+    c.beginPath();
+    c.moveTo(0, GROUND_Y);
+    for(let x = 0; x <= w; x += 20) {
+       c.lineTo(x, GROUND_Y - 40 - Math.sin(x * 0.01) * 20 - Math.cos(x * 0.005) * 10);
+    }
+    c.lineTo(w, GROUND_Y);
+    c.fill();
+
+    // ground
+    c.fillStyle = '#9DC871';
+    c.fillRect(0, GROUND_Y + 4, w, h - GROUND_Y - 4);
+  }
+
+  function drawBeachBackground(c, w, h, t) {
+    const grad = c.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, '#4FACFE');
+    grad.addColorStop(1, '#C6F8FF');
+    c.fillStyle = grad;
+    c.fillRect(0, 0, w, h);
+
+    // sun
+    c.fillStyle = '#FFD700';
+    c.beginPath();
+    c.arc(120, 70, 25, 0, Math.PI * 2);
+    c.fill();
+
+    // sea horizon
+    c.fillStyle = '#2980B9';
+    c.fillRect(0, GROUND_Y - 20, w, 24);
+
+    // ground (sand)
+    c.fillStyle = '#E8C37C';
+    c.fillRect(0, GROUND_Y + 4, w, h - GROUND_Y - 4);
+  }
+
+  function drawBrightNightBackground(c, w, h, t) {
+    const grad = c.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, '#2B4162');
+    grad.addColorStop(1, '#FA9C7A'); // sunset-like bright night
+    c.fillStyle = grad;
+    c.fillRect(0, 0, w, h);
+
+    // moon
+    c.fillStyle = 'rgba(255, 253, 224, 0.9)';
+    c.beginPath();
+    c.arc(w - 120, 80, 35, 0, Math.PI * 2);
+    c.fill();
+
+    // stars
+    c.fillStyle = 'rgba(255,255,255,0.8)';
+    for (let i = 0; i < 30; i++) {
+      const sx = (i * 183.5) % w;
+      const sy = (i * 91.3) % (GROUND_Y - 60);
+      const twinkle = 0.5 + 0.5 * Math.abs(Math.sin(t * 0.003 + i));
+      c.globalAlpha = twinkle;
+      c.fillRect(sx, sy, 2, 2);
+    }
+    c.globalAlpha = 1;
+
+    // ground
+    c.fillStyle = '#423A52';
+    c.fillRect(0, GROUND_Y + 4, w, h - GROUND_Y - 4);
+  }
+
+  function drawImageBackground(c, w, h, bg) {
+    let img = imageCache[bg.id];
+    if (!img) {
+      img = new Image();
+      img.src = bg.src;
+      imageCache[bg.id] = img;
+    }
+    if (!img.complete || img.naturalWidth === 0) {
+      c.fillStyle = '#20263B';
+      c.fillRect(0, 0, w, h);
+      return;
+    }
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    const canvasRatio = w / h;
+    const imgRatio = iw / ih;
+    let sx, sy, sw, sh;
+    if (imgRatio > canvasRatio) {
+      sh = ih;
+      sw = ih * canvasRatio;
+      sx = (iw - sw) / 2;
+      sy = 0;
+    } else {
+      sw = iw;
+      sh = iw / canvasRatio;
+      sx = 0;
+      sy = (ih - sh) / 2;
+    }
+    c.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+    c.fillStyle = 'rgba(20,20,30,0.18)';
+    c.fillRect(0, 0, w, h);
+    c.fillStyle = '#5B4B3A';
+    c.fillRect(0, GROUND_Y + 4, w, h - GROUND_Y - 4);
+  }
+
+  BACKGROUNDS.push(
+    { id: 'day', label: '낮', type: 'procedural', draw: drawDayBackground, obsColors: { cactus: '#4F6B3E', bird: '#6E4B6E' } },
+    { id: 'spring', label: '봄낮', type: 'procedural', draw: drawSpringBackground, obsColors: { cactus: '#2A5C2B', bird: '#5E3A5E' } },
+    { id: 'beach', label: '바다', type: 'procedural', draw: drawBeachBackground, obsColors: { cactus: '#1E6335', bird: '#8B3A3A' } },
+    { id: 'bright-night', label: '초저녁', type: 'procedural', draw: drawBrightNightBackground, obsColors: { cactus: '#90B290', bird: '#D1A3C4' } },
+    { id: 'desert', label: '사막 노을', type: 'procedural', draw: drawDesertBackground, obsColors: { cactus: '#2D382D', bird: '#2A1F2A' } }
+  );
+
+  let currentBackgroundId = 'day';
+
+  function renderSceneButtons() {
+    const wrap = document.getElementById('sceneButtons');
+    wrap.innerHTML = '';
+    BACKGROUNDS.forEach((bg) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'scene-pill' + (bg.id === currentBackgroundId ? ' active' : '');
+      btn.textContent = bg.label;
+      btn.addEventListener('click', () => {
+        currentBackgroundId = bg.id;
+        renderSceneButtons();
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
+  window.addDinoBackground = function (bg) {
+    if (!bg || !bg.id || !bg.label) return;
+    const existingIndex = BACKGROUNDS.findIndex((b) => b.id === bg.id);
+    if (existingIndex >= 0) BACKGROUNDS[existingIndex] = bg;
+    else BACKGROUNDS.push(bg);
+    currentBackgroundId = bg.id;
+    renderSceneButtons();
+  };
+
+  renderSceneButtons();
+
+  const toggleCustomBtn = document.getElementById('toggleCustom');
+  const customPanel = document.getElementById('customPanel');
+  toggleCustomBtn.addEventListener('click', () => {
+    customPanel.classList.toggle('open');
+  });
+
+  document.getElementById('applyUrl').addEventListener('click', () => {
+    const val = document.getElementById('customUrl').value.trim();
+    if (!val) return;
+    const id = 'custom-url-' + Date.now();
+    window.addDinoBackground({ id, label: '커스텀', type: 'image', src: val });
+  });
+
+  document.getElementById('customFile').addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const id = 'custom-file-' + Date.now();
+      window.addDinoBackground({ id, label: '커스텀', type: 'image', src: reader.result });
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // --- Background Music (BGM) Setup ---
+  let bgmAudio = new Audio();
+  bgmAudio.loop = true;
+  bgmAudio.volume = 0.5; // 배경음악 볼륨 50%
+
+  document.getElementById('bgmFile').addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      bgmAudio.src = reader.result;
+      if (gameState === 'running') {
+        stopProceduralBgm();
+        bgmAudio.play().catch(err => console.log("Audio play error:", err));
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+  // ------------------------------------
+
+  function drawBackground(t) {
+    const bg = BACKGROUNDS.find((b) => b.id === currentBackgroundId) || BACKGROUNDS[0];
+    if (bg.type === 'procedural') bg.draw(ctx, LOGICAL_W, LOGICAL_H, t);
+    else drawImageBackground(ctx, LOGICAL_W, LOGICAL_H, bg);
+  }
+
+  let audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) {
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      } catch (e) { audioCtx = null; }
+      if (audioCtx) setupBgmGraph();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  }
+  function beep(freq, duration, type, volume) {
+    if (!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type || 'square';
+    osc.frequency.value = freq;
+    gain.gain.value = volume || 0.05;
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.stop(audioCtx.currentTime + duration);
+  }
+
+  // === 절차적 배경음악 (신나고 긴박한 칩튠 체이스 테마) ===
+  let bgmMasterGain = null;   
+  let bgmFilter = null;       
+  let bgmHatGain = null;      
+  let bgmNoiseBuffer = null;  
+  let bgmSchedulerTimer = null;
+  let bgmNextNoteTime = 0;
+  let bgmStep = 0;
+  let bgmPlaying = false;
+
+  const BGM_ROOT = 220;           // A3
+  const BGM_TEMPO = 172;          // 빠르고 급박한 템포 (BPM)
+  const BGM_STEP_DUR = 60 / BGM_TEMPO / 2; // 8분음표 간격
+  const BGM_LOOKAHEAD_MS = 25;
+  const BGM_SCHEDULE_AHEAD = 0.12;
+
+  // 16스텝(2마디) 루프
+  const bgmBassPattern = [0, null, 0, null, 3, null, 0, 7, 0, null, 0, null, 8, null, 11, null];
+  const bgmLeadPattern = [null, 12, null, 15, null, 12, null, null, null, 12, null, 15, null, 19, null, 23];
+  const bgmKickSteps = [0, 4, 8, 12];
+
+  function noteFreq(semitoneOffset) {
+    return BGM_ROOT * Math.pow(2, semitoneOffset / 12);
+  }
+
+  function setupBgmGraph() {
+    bgmMasterGain = audioCtx.createGain();
+    bgmMasterGain.gain.value = 0;
+    bgmMasterGain.connect(audioCtx.destination);
+
+    bgmFilter = audioCtx.createBiquadFilter();
+    bgmFilter.type = 'lowpass';
+    bgmFilter.frequency.value = 1200;
+    bgmFilter.Q.value = 0.7;
+    bgmFilter.connect(bgmMasterGain);
+
+    bgmHatGain = audioCtx.createGain();
+    bgmHatGain.gain.value = 0.5;
+    bgmHatGain.connect(bgmMasterGain);
+
+    // 하이햇용 화이트노이즈 버퍼 (한 번만 생성)
+    const bufSize = audioCtx.sampleRate * 0.05;
+    bgmNoiseBuffer = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+    const data = bgmNoiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+  }
+
+  function playBgmTone(freq, time, dur, type, peakVol, dest) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, time);
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(peakVol, time + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+    osc.connect(gain);
+    gain.connect(dest);
+    osc.start(time);
+    osc.stop(time + dur + 0.02);
+  }
+
+  function playBgmKick(time) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, time);
+    osc.frequency.exponentialRampToValueAtTime(48, time + 0.12);
+    gain.gain.setValueAtTime(0.28, time);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.16);
+    osc.connect(gain);
+    gain.connect(bgmMasterGain);
+    osc.start(time);
+    osc.stop(time + 0.2);
+  }
+
+  function playBgmHat(time) {
+    const src = audioCtx.createBufferSource();
+    src.buffer = bgmNoiseBuffer;
+    const hp = audioCtx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 7000;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.16, time);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.035);
+    src.connect(hp);
+    hp.connect(gain);
+    gain.connect(bgmHatGain);
+    src.start(time);
+    src.stop(time + 0.04);
+  }
+
+  function scheduleBgmStep(step, time) {
+    playBgmHat(time);
+    if (bgmKickSteps.indexOf(step) !== -1) playBgmKick(time);
+
+    const bassNote = bgmBassPattern[step];
+    if (bassNote !== null) {
+      playBgmTone(noteFreq(bassNote - 12), time, BGM_STEP_DUR * 0.92, 'sawtooth', 0.22, bgmFilter);
+    }
+    const leadNote = bgmLeadPattern[step];
+    if (leadNote !== null) {
+      playBgmTone(noteFreq(leadNote), time, BGM_STEP_DUR * 0.85, 'square', 0.1, bgmFilter);
+    }
+  }
+
+  function bgmSchedulerTick() {
+    while (bgmNextNoteTime < audioCtx.currentTime + BGM_SCHEDULE_AHEAD) {
+      scheduleBgmStep(bgmStep, bgmNextNoteTime);
+      bgmNextNoteTime += BGM_STEP_DUR;
+      bgmStep = (bgmStep + 1) % bgmBassPattern.length;
+    }
+  }
+
+  function startProceduralBgm() {
+    if (!audioCtx || bgmPlaying) return;
+    bgmPlaying = true;
+    bgmStep = 0;
+    bgmNextNoteTime = audioCtx.currentTime + 0.05;
+    bgmMasterGain.gain.cancelScheduledValues(audioCtx.currentTime);
+    bgmMasterGain.gain.setValueAtTime(0, audioCtx.currentTime);
+    bgmMasterGain.gain.linearRampToValueAtTime(0.42, audioCtx.currentTime + 0.4);
+    bgmSchedulerTimer = setInterval(bgmSchedulerTick, BGM_LOOKAHEAD_MS);
+  }
+
+  function stopProceduralBgm() {
+    if (!bgmPlaying) return;
+    bgmPlaying = false;
+    if (bgmSchedulerTimer) { clearInterval(bgmSchedulerTimer); bgmSchedulerTimer = null; }
+    if (audioCtx && bgmMasterGain) {
+      bgmMasterGain.gain.cancelScheduledValues(audioCtx.currentTime);
+      bgmMasterGain.gain.setValueAtTime(bgmMasterGain.gain.value, audioCtx.currentTime);
+      bgmMasterGain.gain.linearRampToValueAtTime(0.0001, audioCtx.currentTime + 0.25);
+    }
+  }
+
+  function updateBgmIntensity(speed) {
+    if (!bgmPlaying || !bgmFilter || !audioCtx) return;
+    const t = Math.max(0, Math.min(1, (speed - 6) / (MAX_SPEED - 6)));
+    const cutoff = 1000 + t * 3200;
+    bgmFilter.frequency.setTargetAtTime(cutoff, audioCtx.currentTime, 0.25);
+  }
+  // === BGM 엔진 끝 ===
+
+  const STAND_W = 44, STAND_H = 44;
+  const DUCK_W = 58, DUCK_H = 26;
+
+  const dino = {
+    x: 60,
+    y: GROUND_Y - STAND_H,
+    vy: 0,
+    width: STAND_W,
+    height: STAND_H,
+    state: 'run', // 'run' | 'jump' | 'duck'
+    duckHeld: false,
+    legFrame: 0,
+    legTimer: 0
+  };
+
+  let effectTimers = { jump: 0, speed: 0 };
+
+  function resetDino() {
+    dino.y = GROUND_Y - STAND_H;
+    dino.vy = 0;
+    dino.width = STAND_W;
+    dino.height = STAND_H;
+    dino.state = 'run';
+    dino.duckHeld = false;
+    effectTimers = { jump: 0, speed: 0 };
+  }
+
+  function jump() {
+    if (dino.state !== 'jump') {
+      const speedRatio = Math.min(1, Math.max(0, (gameSpeed - 6) / (14 - 6))); 
+      const currentJumpVel = -15.5 - (speedRatio * 2.5); 
+      const currentJumpBoostVel = -19.0 - (speedRatio * 3.0); 
+
+      dino.vy = (effectTimers.jump > 0) ? currentJumpBoostVel : currentJumpVel;
+      dino.state = 'jump';
+      dino.width = STAND_W;
+      dino.height = STAND_H;
+      beep(720, 0.08, 'square', 0.04);
+    }
+  }
+
+  function updateDino(dt) {
+    const grounded = dino.state !== 'jump';
+
+    if (grounded) {
+      if (dino.duckHeld) {
+        dino.state = 'duck';
+        dino.width = DUCK_W;
+        dino.height = DUCK_H;
+      } else {
+        dino.state = 'run';
+        dino.width = STAND_W;
+        dino.height = STAND_H;
+      }
+      dino.y = GROUND_Y - dino.height;
+    } else {
+      const speedRatio = Math.min(1, Math.max(0, (gameSpeed - 6) / (14 - 6)));
+      const curGravity = 1.2 + (speedRatio * 0.6); 
+      const curFastFall = 3.4 + (speedRatio * 0.8); 
+      const g = dino.duckHeld ? curFastFall : curGravity;
+
+      dino.vy += g * dt;
+      dino.y += dino.vy * dt;
+      if (dino.y >= GROUND_Y - STAND_H) {
+        dino.y = GROUND_Y - STAND_H;
+        dino.vy = 0;
+        dino.state = dino.duckHeld ? 'duck' : 'run';
+        dino.width = dino.state === 'duck' ? DUCK_W : STAND_W;
+        dino.height = dino.state === 'duck' ? DUCK_H : STAND_H;
+      }
+    }
+
+    dino.legTimer += dt;
+    if (dino.legTimer > 6) {
+      dino.legTimer = 0;
+      dino.legFrame = 1 - dino.legFrame;
+    }
+  }
+
+  // 자연스러운 병아리 렌더링 함수 (가장자리에만 얇은 테두리 추가)
+  function drawChickShape(x, y, w, h, state, legFrame, alpha = 1, tint = null) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    
+    const mainColor = tint ? tint : '#FFE600'; 
+    const tailColor = tint ? tint : '#FFD700';
+    const outlineColor = '#111'; // 얇은 검은색 외곽선
+
+    // 1. 다리 그리기
+    const drawLegs = (isOutline) => {
+      if (isOutline) {
+        ctx.fillStyle = outlineColor; ctx.strokeStyle = outlineColor; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+      } else {
+        ctx.fillStyle = '#FF8C00';
+      }
+      const drawRect = (lx, ly, lw, lh) => {
+        ctx.beginPath(); ctx.rect(lx, ly, lw, lh);
+        if (isOutline) ctx.stroke(); ctx.fill();
+      };
+
+      if (state === 'duck') {
+        const legOffset = legFrame === 0 ? 0 : 4;
+        drawRect(x + 15 + legOffset, y + h, 4, 6);
+        drawRect(x + w - 25 - legOffset, y + h, 4, 6);
+      } else {
+        if (state === 'jump') {
+          drawRect(x + 12, y + h - 2, 4, 8);
+          drawRect(x + 24, y + h - 2, 4, 8);
+        } else {
+          if (legFrame === 0) {
+            drawRect(x + 12, y + h - 2, 4, 8);
+            drawRect(x + 26, y + h - 4, 4, 6);
+          } else {
+            drawRect(x + 12, y + h - 4, 4, 6);
+            drawRect(x + 24, y + h - 2, 4, 8);
+          }
+        }
+      }
+    };
+    drawLegs(true); drawLegs(false);
+
+    // 2. 꼬리 그리기
+    const drawTail = (isOutline) => {
+      if (state === 'duck') return;
+      if (isOutline) {
+        ctx.fillStyle = outlineColor; ctx.strokeStyle = outlineColor; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+      } else {
+        ctx.fillStyle = tailColor;
+      }
+      ctx.beginPath(); 
+      ctx.moveTo(x - 6, y + h - 15); 
+      ctx.lineTo(x + 6, y + h - 25); 
+      ctx.lineTo(x + 6, y + h - 10); 
+      ctx.closePath(); 
+      if (isOutline) ctx.stroke();
+      ctx.fill(); 
+    };
+    drawTail(true); drawTail(false);
+
+    // 3. 몸통과 머리 그리기 (연결부위 자연스럽게 합치기)
+    const drawBodyHead = (isOutline) => {
+      if (isOutline) {
+        ctx.fillStyle = outlineColor; ctx.strokeStyle = outlineColor; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+      } else {
+        ctx.fillStyle = mainColor;
+      }
+      
+      if (state === 'duck') {
+        ctx.beginPath();
+        ctx.ellipse(x + w/2, y + h - 10, w/2, h/2 + 2, 0, 0, Math.PI*2);
+        if (isOutline) ctx.stroke();
+        ctx.fill();
+      } else {
+        // 배
+        ctx.beginPath();
+        ctx.ellipse(x + w/2 - 4, y + h/2 - 2, w/2 - 2, h/2, 0, 0, Math.PI*2);
+        if (isOutline) ctx.stroke();
+        ctx.fill();
+        
+        // 머리
+        ctx.beginPath();
+        ctx.ellipse(x + w/2 + 4, y + 14, 16, 16, 0, 0, Math.PI*2);
+        if (isOutline) ctx.stroke();
+        ctx.fill();
+        
+        // 볏
+        ctx.beginPath(); ctx.arc(x + w/2 + 4, y - 2, 4, 0, Math.PI, true); 
+        ctx.closePath();
+        if (isOutline) ctx.stroke();
+        ctx.fill(); 
+      }
+    };
+    drawBodyHead(true); drawBodyHead(false);
+
+    // 4. 부리 그리기
+    const drawBeak = (isOutline) => {
+      if (isOutline) {
+        ctx.fillStyle = outlineColor; ctx.strokeStyle = outlineColor; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+      } else {
+        ctx.fillStyle = '#FF8C00';
+      }
+      ctx.beginPath(); 
+      if (state === 'duck') {
+        ctx.moveTo(x + w - 8, y + h - 14); 
+        ctx.lineTo(x + w + 4, y + h - 11); 
+        ctx.lineTo(x + w - 8, y + h - 8); 
+      } else {
+        ctx.moveTo(x + w - 4, y + 12); 
+        ctx.lineTo(x + w + 8, y + 15); 
+        ctx.lineTo(x + w - 4, y + 18); 
+      }
+      ctx.closePath(); 
+      if (isOutline) ctx.stroke();
+      ctx.fill(); 
+    };
+    drawBeak(true); drawBeak(false);
+
+    // 5. 눈 그리기 (눈은 제일 위에 위치하므로 마지막에 그림)
+    ctx.fillStyle = outlineColor;
+    ctx.beginPath(); 
+    if (state === 'duck') {
+      ctx.arc(x + w - 16, y + h - 14, 2.5, 0, Math.PI*2); 
+    } else {
+      ctx.arc(x + w - 8, y + 10, 3, 0, Math.PI*2); 
+    }
+    ctx.fill();
+    
+    ctx.restore();
+  }
+
+  function drawDino() {
+    if (effectTimers.speed > 0) {
+      drawChickShape(dino.x - 30, dino.y, dino.width, dino.height, dino.state, dino.legFrame, 0.2, '#60A5FA');
+      drawChickShape(dino.x - 15, dino.y, dino.width, dino.height, dino.state, dino.legFrame, 0.4, '#60A5FA');
+    }
+
+    const mainColor = effectTimers.jump > 0 ? '#D9F99D' : null;
+    drawChickShape(dino.x, dino.y, dino.width, dino.height, dino.state, dino.legFrame, 1, mainColor);
+  }
+
+  let obstacles = [];
+  let items = [];
+
+  function makeObstacle(type) {
+    switch (type) {
+      case 'cactus-small':
+        return { type, width: 18, height: 34 };
+      case 'cactus-large':
+        return { type, width: 24, height: 46 };
+      case 'cactus-cluster':
+        return { type, width: 46, height: 38 };
+      case 'bird-low':
+        return { type, width: 34, height: 24, flyY: GROUND_Y - 30 };
+      case 'bird-high':
+        return { type, width: 34, height: 24, flyY: GROUND_Y - 55 }; 
+      default:
+        return { type: 'cactus-small', width: 18, height: 34 };
+    }
+  }
+
+  function placeObstacle(ob, x) {
+    ob.x = x;
+    ob.y = ob.type.indexOf('cactus') === 0 ? GROUND_Y - ob.height : ob.flyY;
+    return ob;
+  }
+
+  function randomSingleType() {
+    const roll = Math.random();
+    if (roll < 0.30) return 'cactus-small';
+    if (roll < 0.55) return 'cactus-large';
+    if (roll < 0.70) return 'cactus-cluster';
+    if (roll < 0.85) return 'bird-low';
+    return 'bird-high';
+  }
+
+  const COMBO_RECIPES = [
+    ['cactus-small', 'cactus-small'],
+    ['cactus-small', 'cactus-large'],
+    ['cactus-large', 'cactus-small'],
+    ['cactus-small', 'bird-high'],
+    ['bird-high', 'cactus-small'],
+    ['cactus-large', 'bird-high']
+  ];
+
+  function spawnEncounter(difficulty) {
+    const comboChance = 0.15 + difficulty * 0.4; 
+    let encounterEndPx = 0;
+
+    if (Math.random() < comboChance) {
+      const recipe = COMBO_RECIPES[Math.floor(Math.random() * COMBO_RECIPES.length)];
+      const gapFrames = 26 + Math.random() * 16;
+      const gapPx = gapFrames * gameSpeed;
+
+      const first = placeObstacle(makeObstacle(recipe[0]), LOGICAL_W + 20);
+      obstacles.push(first);
+      const secondX = first.x + first.width + gapPx;
+      const second = placeObstacle(makeObstacle(recipe[1]), secondX);
+      obstacles.push(second);
+      encounterEndPx = (secondX + second.width) - (LOGICAL_W + 20);
+    } else {
+      const single = placeObstacle(makeObstacle(randomSingleType()), LOGICAL_W + 20);
+      obstacles.push(single);
+      encounterEndPx = single.width;
+    }
+
+    const isLateGame = gameSpeed >= 8.5; 
+    const itemChance = isLateGame ? 0.06 : 0.25; 
+
+    if (Math.random() < itemChance) { 
+      const type = Math.random() < 0.5 ? 'jump-boost' : 'speed-boost';
+      const itemY = isLateGame 
+        ? GROUND_Y - 125 - Math.random() * 25  
+        : GROUND_Y - 60 - Math.random() * 40;  
+
+      items.push({
+        type: type,
+        x: LOGICAL_W + 20 + encounterEndPx + 60 + Math.random() * 50,
+        y: itemY,
+        width: 24,
+        height: 24,
+        collected: false
+      });
+    }
+
+    return encounterEndPx;
+  }
+
+  function drawObstacle(ob) {
+    const bg = BACKGROUNDS.find((b) => b.id === currentBackgroundId) || BACKGROUNDS[0];
+    const colors = bg.obsColors || { cactus: '#4F6B3E', bird: '#6E4B6E' }; 
+
+    if (ob.type.indexOf('cactus') === 0) {
+      ctx.fillStyle = colors.cactus;
+      const segs = ob.type === 'cactus-cluster' ? 3 : 1;
+      const segW = ob.width / segs - 4;
+      for (let i = 0; i < segs; i++) {
+        const sx = ob.x + i * (segW + 6);
+        const sh = ob.height - (i % 2 === 1 ? 8 : 0);
+        const sy = ob.y + (ob.height - sh);
+        ctx.fillRect(sx, sy, segW, sh);
+        ctx.fillRect(sx - 5, sy + 8, 5, 8);
+      }
+    } else {
+      const flap = Math.sin(performance.now() / 90 + ob.x) > 0;
+      ctx.fillStyle = colors.bird;
+      ctx.beginPath();
+      ctx.ellipse(ob.x + ob.width / 2, ob.y + ob.height / 2, ob.width / 2, ob.height / 2.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      if (flap) {
+        ctx.moveTo(ob.x + 6, ob.y + ob.height / 2);
+        ctx.lineTo(ob.x - 6, ob.y - 6);
+        ctx.lineTo(ob.x + 16, ob.y + 4);
+      } else {
+        ctx.moveTo(ob.x + 6, ob.y + ob.height / 2);
+        ctx.lineTo(ob.x - 6, ob.y + ob.height + 6);
+        ctx.lineTo(ob.x + 16, ob.y + ob.height - 4);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  function obstacleHitbox(ob) {
+    const pad = ob.type.indexOf('bird') === 0 ? 4 : 3;
+    return { x: ob.x + pad, y: ob.y + pad, width: ob.width - pad * 2, height: ob.height - pad * 2 };
+  }
+
+  function dinoHitbox() {
+    const pad = 5;
+    return { x: dino.x + pad, y: dino.y + pad, width: dino.width - pad * 2, height: dino.height - pad * 2 };
+  }
+
+  function rectsOverlap(a, b) {
+    return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+  }
+
+  function drawItems(timestamp) {
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (it.collected) continue;
+      
+      const floatY = it.y + Math.sin(timestamp / 150 + it.x) * 4;
+      
+      ctx.save();
+      ctx.translate(it.x + it.width/2, floatY + it.height/2);
+      
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = it.type === 'jump-boost' ? '#4ADE80' : '#60A5FA';
+      
+      if (it.type === 'jump-boost') {
+        ctx.fillStyle = '#4ADE80';
+        ctx.beginPath();
+        ctx.moveTo(0, -10);
+        ctx.lineTo(-10, 2);
+        ctx.lineTo(-4, 2);
+        ctx.lineTo(-4, 10);
+        ctx.lineTo(4, 10);
+        ctx.lineTo(4, 2);
+        ctx.lineTo(10, 2);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        ctx.fillStyle = '#60A5FA';
+        ctx.beginPath();
+        ctx.moveTo(2, -10);
+        ctx.lineTo(-8, 2);
+        ctx.lineTo(-2, 2);
+        ctx.lineTo(-4, 12);
+        ctx.lineTo(8, -2);
+        ctx.lineTo(2, -2);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  function applyItemEffect(type) {
+    if (type === 'jump-boost') {
+      effectTimers.jump = 4000; 
+      beep(600, 0.1, 'sine', 0.1); 
+      setTimeout(()=>beep(800, 0.15, 'sine', 0.1), 100);
+    } else if (type === 'speed-boost') {
+      effectTimers.speed = 2000; 
+      beep(1000, 0.1, 'square', 0.05); 
+      setTimeout(()=>beep(1200, 0.2, 'square', 0.05), 100);
+    }
+  }
+
+  function drawEffectsUI() {
+    let yPos = 24;
+    const barW = 120;
+    
+    if (effectTimers.jump > 0) {
+      ctx.fillStyle = '#4ADE80';
+      ctx.font = 'bold 13px var(--font-display)';
+      ctx.fillText('JUMP BOOST', LOGICAL_W/2 - 130, yPos);
+      ctx.fillRect(LOGICAL_W/2 - 30, yPos - 10, (effectTimers.jump / 4000) * barW, 10);
+      yPos += 20;
+    }
+    
+    if (effectTimers.speed > 0) {
+      ctx.fillStyle = '#60A5FA';
+      ctx.font = 'bold 13px var(--font-display)';
+      ctx.fillText('SPEED BOOST', LOGICAL_W/2 - 130, yPos);
+      ctx.fillRect(LOGICAL_W/2 - 30, yPos - 10, (effectTimers.speed / 2000) * barW, 10);
+    }
+  }
+
+  let gameState = 'idle'; // 'idle' | 'running' | 'gameover'
+  let distance = 0;
+  let score = 0;
+  let highScore = 0;
+  let gameSpeed = 6;
+  const MAX_SPEED = 14;
+  let nextSpawnDistance = 300;
+  let lastTime = null;
+  let groundOffset = 0;
+
+  function updateReadouts() {
+    scoreDisplay.textContent = String(Math.floor(score)).padStart(5, '0');
+    highScoreDisplay.textContent = String(Math.floor(highScore)).padStart(5, '0');
+  }
+
+  function startGame() {
+    obstacles = [];
+    items = [];
+    resetDino();
+    distance = 0;
+    score = 0;
+    gameSpeed = 6;
+    nextSpawnDistance = 300;
+    gameState = 'running';
+    overlay.classList.add('hidden');
+    updateReadouts();
+
+    if (bgmAudio.src) {
+      bgmAudio.play().catch(err => console.log("Audio play error:", err));
+    } else {
+      startProceduralBgm();
+    }
+  }
+
+  function endGame() {
+    gameState = 'gameover';
+    highScore = Math.max(highScore, score);
+    updateReadouts();
+    overlayTitle.textContent = '게임 종료 · 점수 ' + Math.floor(score);
+    overlaySub.textContent = '↑ 를 눌러 다시 시작';
+    overlay.classList.remove('hidden');
+    beep(160, 0.35, 'sawtooth', 0.05);
+
+    bgmAudio.pause();
+    bgmAudio.currentTime = 0;
+    stopProceduralBgm();
+  }
+
+  function drawGround(t) {
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, GROUND_Y);
+    ctx.lineTo(LOGICAL_W, GROUND_Y);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+    ctx.lineWidth = 2;
+    const dashLen = 26, gapLen = 22, period = dashLen + gapLen;
+    let x = -(groundOffset % period);
+    while (x < LOGICAL_W) {
+      ctx.beginPath();
+      ctx.moveTo(x, GROUND_Y + 8);
+      ctx.lineTo(x + dashLen, GROUND_Y + 8);
+      ctx.stroke();
+      x += period;
+    }
+  }
+
+  function frame(timestamp) {
+    if (lastTime === null) lastTime = timestamp;
+    const dt = Math.min((timestamp - lastTime) / 16.6667, 2.2);
+    const dtRealMs = timestamp - lastTime;
+    lastTime = timestamp;
+
+    ctx.clearRect(0, 0, LOGICAL_W, LOGICAL_H);
+    drawBackground(timestamp);
+
+    if (gameState === 'running') {
+      if (effectTimers.jump > 0) effectTimers.jump -= dtRealMs;
+      if (effectTimers.speed > 0) effectTimers.speed -= dtRealMs;
+
+      const speedMultiplier = (effectTimers.speed > 0) ? 1.3 : 1.0;
+      const currentSpeed = gameSpeed * speedMultiplier;
+
+      distance += currentSpeed * dt;
+      groundOffset += currentSpeed * dt;
+      score += currentSpeed * dt * 0.08;
+      
+      gameSpeed = Math.min(MAX_SPEED, 6 + score / 220);
+      updateBgmIntensity(currentSpeed);
+
+      updateDino(dt);
+
+      if (distance >= nextSpawnDistance) {
+        const difficulty = Math.min(1, score / 900);
+        const encounterWidth = spawnEncounter(difficulty);
+        const gap = 220 + Math.random() * 260 - (gameSpeed - 6) * 6;
+        nextSpawnDistance = distance + Math.max(160, gap) + encounterWidth;
+      }
+
+      const dHitbox = dinoHitbox();
+      const isInvincible = effectTimers.speed > 0;
+
+      for (let i = items.length - 1; i >= 0; i--) {
+        const it = items[i];
+        it.x -= currentSpeed * dt;
+        if (it.x + it.width < -20) {
+          items.splice(i, 1);
+          continue;
+        }
+        if (!it.collected && rectsOverlap(dHitbox, it)) {
+          it.collected = true;
+          applyItemEffect(it.type);
+        }
+      }
+
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        const ob = obstacles[i];
+        ob.x -= currentSpeed * dt;
+        if (ob.x + ob.width < -20) {
+          obstacles.splice(i, 1);
+          continue;
+        }
+        
+        if (rectsOverlap(dHitbox, obstacleHitbox(ob))) {
+          if (isInvincible) {
+            obstacles.splice(i, 1);
+            score += 10; 
+            beep(400, 0.05, 'sawtooth', 0.05); 
+          } else {
+            endGame();
+          }
+        }
+      }
+
+      if (Math.floor(score) > 0 && Math.floor(score) % 200 === 0 && Math.floor(score) !== lastMilestone) {
+        lastMilestone = Math.floor(score);
+        beep(880, 0.12, 'square', 0.035);
+      }
+
+      updateReadouts();
+    }
+
+    drawGround(timestamp);
+    drawItems(timestamp);
+    obstacles.forEach(drawObstacle);
+    drawDino(); 
+    
+    if (gameState === 'running') drawEffectsUI();
+
+    requestAnimationFrame(frame);
+  }
+  
+  let lastMilestone = -1;
+
+  function handleJumpKey() {
+    ensureAudio();
+    if (gameState === 'idle') { startGame(); return; }
+    if (gameState === 'gameover') { startGame(); return; }
+    if (gameState === 'running') jump();
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'ArrowUp' || e.code === 'Space') {
+      e.preventDefault();
+      handleJumpKey();
+    } else if (e.code === 'ArrowDown') {
+      e.preventDefault();
+      dino.duckHeld = true;
+    } else if (e.code === 'ArrowRight') {
+      e.preventDefault();
+      handleJumpKey();
+    }
+  });
+
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'ArrowDown') {
+      dino.duckHeld = false;
+    }
+  });
+
+  updateReadouts();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

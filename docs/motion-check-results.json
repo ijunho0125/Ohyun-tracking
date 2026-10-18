@@ -1,0 +1,82 @@
+{
+  "checks": [
+    "palm movement, dwell feedback, index curling and thumb-index touching never click",
+    "closing freezes cursor and original target; one fist selects once and cannot activate the next screen",
+    "tracking loss cancels a close and the other hand never takes over the cursor",
+    "16:9 raw-coordinate overlay matches video bounds and mirror, including enlargement, zoom and display toggle",
+    "tiger tutorial advances on actual mock landmarks, motion selection and confirmed release, not mouse clicks or time",
+    "open-palm next and finish work; held cursor cannot advance successive screens or fabricate practice completion",
+    "original tetris: left/right fists move, nod-return rotates once, both fists instantly drop once per cycle, wrist bends do nothing",
+    "lost hands clear overlays, release held input and automatically pause the game",
+    "12 game switches retain one stream, one live worker, at most two RAF callbacks and no duplicated game listeners",
+    "stalled inference expires old landmarks and cursor"
+  ],
+  "stats": {
+    "mock": {
+      "streams": 1,
+      "liveWorkers": 1,
+      "maxWorkers": 1,
+      "frames": 514,
+      "clicks": 5
+    },
+    "raf": 2,
+    "listeners": {
+      "document:visibilitychange": 2,
+      "window:pointerup": 1,
+      "window:keydown": 1,
+      "window:keyup": 1,
+      "window:blur": 1,
+      "window:motion-dialog-open": 1
+    },
+    "details": {
+      "document:visibilitychange": [
+        "() => {\n      if (document.hidden) {\n        clearSelection();\n        setCursor({ ...initialCursor, activation: activation.current });\n      }\n    }",
+        "() => {\n      if (document.hidden) pause(\"탭을 벗어나 게임을 일시정지했어요.\");\n    }"
+      ],
+      "window:pointerup": [
+        "(event) => {\n      var _a;\n      return (_a = this._hitTargetInterceptor) == null ? void 0 : _a.call(this, event);\n    }",
+        "() => {\n      keys.current.clear();\n      game.release();\n    }"
+      ],
+      "window:keydown": [
+        "(e) => {\n      if (e.target?.matches(\"input,select,textarea\")) return;\n      if ([\"ArrowLeft\", \"ArrowRight\", \"ArrowUp\", \"ArrowDown\", \" \"].includes(e.key)) e.preventDefault();\n      if (e.key === \"Escape\") {\n        pause"
+      ],
+      "window:keyup": [
+        "(e) => {\n      keys.current.delete(e.key);\n      if (e.key === \"ArrowDown\") {\n        command({ type: \"duck\", value: false });\n        command({ type: \"softDrop\", value: false });\n      }\n      if (id === \"balance\" && !k"
+      ],
+      "window:blur": [
+        "() => pause(\"화면 포커스를 벗어나 일시정지했어요.\")"
+      ],
+      "window:motion-dialog-open": [
+        "() => pause(\"설정이나 미리보기를 확인하는 동안 게임을 멈췄어요.\")"
+      ]
+    }
+  },
+  "alignment": {
+    "w": 1280,
+    "h": 720,
+    "video": [
+      1128,
+      224.796875,
+      268,
+      150.75
+    ],
+    "canvas": [
+      1128,
+      224.796875,
+      268,
+      150.75
+    ],
+    "mirror": [
+      "matrix(-1, 0, 0, 1, 0, 0)",
+      "matrix(-1, 0, 0, 1, 0, 0)"
+    ],
+    "pixel": [
+      253,
+      113,
+      34,
+      255
+    ]
+  },
+  "errors": [],
+  "note": "Mock camera stream and mock worker landmarks; no human webcam performance was tested."
+}

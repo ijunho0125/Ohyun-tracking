@@ -1,0 +1,39 @@
+# Dependencies and build output
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# Assets recreated by scripts/prepare-assets.mjs
+public/vision/
+public/vision.worker.js
+public/notices/
+
+# Local caches and test failures (keep documented validation evidence)
+test-results/
+playwright-report/
+.npm-cache/
+*.log
+docs/screenshots/*failure*.png
+docs/right-hand-before.json
+
+# Environment variables and credentials
+.env
+.env.*
+!.env.example
+!.env.*.example
+.npmrc
+*.pem
+*.key
+*.p12
+*.pfx
+.aws/
+
+# Local editor and operating system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo

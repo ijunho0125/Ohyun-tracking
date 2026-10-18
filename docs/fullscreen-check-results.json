@@ -1,0 +1,17 @@
+{
+  "checks": [
+    "lobby 1280x640: no scrolling or clipped actions",
+    "lobby 1280x720: no scrolling or clipped actions",
+    "lobby 1366x768: no scrolling or clipped actions",
+    "lobby 1920x1080: no scrolling or clipped actions",
+    "all four settings panels fit the viewport",
+    "character tabs, actual image processing/storage and paginated library",
+    "hand/body lab and drawing experiment fit without scrolling",
+    "tutorial layout and source dino keyboard practice",
+    "actual source dino, fullscreen entry/exit, background, custom character, jump/duck, score, pause and restart",
+    "actual source tetris HARD mode, board scaling, original rotation/drop, soft-drop release, pause and resume",
+    "balance remains playable with compact tracking view; exiting fullscreen pauses play",
+    "no browser runtime errors"
+  ],
+  "errors": []
+}

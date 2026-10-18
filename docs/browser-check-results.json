@@ -1,0 +1,30 @@
+{
+  "checks": [
+    "lobby 1280x640: no scrolling or clipped actions",
+    "lobby 1280x720: no scrolling or clipped actions",
+    "lobby 1366x768: no scrolling or clipped actions",
+    "lobby 1920x1080: no scrolling or clipped actions",
+    "all four settings panels fit the viewport",
+    "character tabs, actual image processing/storage and paginated library",
+    "hand/body lab and drawing experiment fit without scrolling",
+    "tutorial layout and source dino keyboard practice",
+    "actual source dino, fullscreen entry/exit, background, custom character, jump/duck, score, pause and restart",
+    "actual source tetris HARD mode, board scaling, original rotation/drop, soft-drop release, pause and resume",
+    "balance remains playable with compact tracking view; exiting fullscreen pauses play",
+    "no browser runtime errors"
+  ],
+  "errors": [],
+  "modelResult": [
+    "PASS: hand 모델 + 0.10.32 WASM 로드",
+    "PASS: hand 실제 Worker 추론, 빈 영상 감지 0개, 145.3ms (해당 합성 프레임 측정)",
+    "PASS: pose 모델 + 0.10.32 WASM 로드",
+    "PASS: pose 실제 Worker 추론, 빈 영상 감지 0개, 127.5ms (해당 합성 프레임 측정)",
+    "PASS: tetris 모델 + 0.10.32 WASM 로드",
+    "PASS: tetris 실제 Worker 추론, 빈 영상 감지 0개, 185.7ms (해당 합성 프레임 측정)",
+    "PASS: 모델 로딩 실패를 error로 보고",
+    "PASS: 새 Worker로 모델 로드 재시도 성공",
+    "PASS: 실제 Canvas 단색 배경 제거 + 그림 픽셀 보존",
+    "PASS: 실제 Canvas 잘라내기 40 × 80",
+    "PASS: IndexedDB에 원본·처리본 Blob 저장 및 읽기 (검사 데이터 정리 완료)"
+  ]
+}

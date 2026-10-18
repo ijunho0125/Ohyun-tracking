@@ -1,0 +1,46 @@
+{
+  "rawSummary": [
+    {
+      "side": "Right",
+      "score": 0.9517603516578674,
+      "visibilityValues": [
+        0
+      ],
+      "shape": "open"
+    },
+    {
+      "side": "Right",
+      "score": 0.9711547493934631,
+      "visibilityValues": [
+        0
+      ],
+      "shape": "open"
+    }
+  ],
+  "workerSummary": [
+    {
+      "side": "Right",
+      "score": 0.9517603516578674,
+      "shape": "open",
+      "hasVisibility": false
+    },
+    {
+      "side": "Right",
+      "score": 0.9711547493934631,
+      "shape": "open",
+      "hasVisibility": false
+    }
+  ],
+  "app": {
+    "cursorVisible": true,
+    "rightHandReported": true,
+    "overlayDrawn": true,
+    "preview": {
+      "width": 760,
+      "height": 600,
+      "paused": false,
+      "readyState": 4
+    },
+    "errors": []
+  }
+}

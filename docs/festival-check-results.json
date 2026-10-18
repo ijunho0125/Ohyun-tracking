@@ -1,0 +1,39 @@
+{
+  "checks": [
+    "large event typography, readable text contrast, keyboard focus and working skip link",
+    "tetris music is already enabled and produces audio before practice or play",
+    "stage fills the viewport; camera floats above it with position, collapse and keyboard-operable controls",
+    "sound toggle, tetris practice checklist, pause/resume audio and context cleanup on exit",
+    "dino original music plays on entry through the same audio bus and closes on exit",
+    "balance has entry sound and gentle background music"
+  ],
+  "typography": {
+    "cardTitle": 32,
+    "cardCopy": 20,
+    "nav": 20,
+    "mainButton": 20,
+    "copyContrast": 9.455871392530224,
+    "heroContrast": 8.973626346853825
+  },
+  "stage": {
+    "stage": [
+      0,
+      0,
+      1280,
+      720
+    ],
+    "camera": [
+      994,
+      80,
+      270,
+      328.375
+    ],
+    "viewport": [
+      1280,
+      720
+    ],
+    "onTop": true
+  },
+  "errors": [],
+  "note": "Audio tested through real Web Audio analyser output in Chrome, not speakers or a human webcam."
+}
