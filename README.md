@@ -88,6 +88,7 @@ npm.cmd run dev
 ## 검사와 빌드
 
 ```powershell
+npm.cmd run typecheck
 npm.cmd test
 npm.cmd run build
 npm.cmd run preview
@@ -100,7 +101,10 @@ npm.cmd run test:browser
 npm.cmd run test:motion
 npm.cmd run test:right-hand
 npm.cmd run test:festival
+npm.cmd run test:loading
 ```
+
+`test:loading`은 첫 화면에서 보조 화면 코드를 요청하지 않는지, 느린 화면 전환에서도 Canvas 오류가 없는지, 게임을 떠날 때 오디오가 즉시 정리되는지 확인합니다. `TEST_URL`을 미리보기 서버 주소로 지정하면 프로덕션 빌드에서도 같은 검사를 실행할 수 있습니다.
 
 일반 검사는 화면 잘림·전체화면·원본 게임·키보드·PNG 업로드·저장·모델 로드를, 모션 검사는 합성 카메라 스트림과 모의 관절 좌표로 주먹·원본 테트리스 조작·트래킹·튜토리얼·자원 정리를 시험합니다. 오른손 검사는 공식 손 사진과 실제 모델·Worker로 커서와 관절 표시를 시험합니다. 손 관절의 SDK 기본값 `visibility: 0`은 손 소실로 처리하지 않으며 몸의 가시성 판정과 분리합니다. iframe 안의 `motionGame`은 실제 게임 제어 인터페이스이며 테스트도 같은 인터페이스로 상태를 확인합니다. `/tests/worker-smoke.html`에서는 실제 모델의 빈 합성 프레임 추론과 Canvas·IndexedDB를 시험합니다. 검사 HTML은 프로덕션 빌드에 포함하지 않습니다.
 

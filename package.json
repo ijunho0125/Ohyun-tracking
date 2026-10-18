@@ -13,7 +13,8 @@
     "test:motion": "node tests/motion-browser-check.mjs",
     "test:right-hand": "node tests/right-hand-browser-check.mjs",
     "test:festival": "node tests/festival-browser-check.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:loading": "node tests/loading-browser-check.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "0.10.32",
