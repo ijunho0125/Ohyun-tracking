@@ -1,6 +1,8 @@
 # Dependencies and build output
 node_modules/
 dist/
+dist-server/
+.character-data/
 .vite/
 *.tsbuildinfo
 

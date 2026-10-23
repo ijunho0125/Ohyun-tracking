@@ -1,7 +1,7 @@
 import { afterEach,beforeEach,describe,it,expect,vi } from 'vitest';
 import { defaults } from '../src/core/types';
 import { CameraManager } from '../src/motion/camera';
-let permission=vi.fn(),video:{muted:boolean;playsInline:boolean;readyState:number;pause:ReturnType<typeof vi.fn>;play:ReturnType<typeof vi.fn>;srcObject:unknown};
+let permission=vi.fn(),video:{muted:boolean;playsInline:boolean;readyState:number;pause:ReturnType<typeof vi.fn>;play:ReturnType<typeof vi.fn>;srcObject:unknown;currentTime?:number;videoWidth?:number;videoHeight?:number};
 let workers:FakeWorker[]=[];
 type WorkerMessage = { type: string; message?: string };
 class FakeWorker { onmessage:((e:{data:WorkerMessage})=>void)|null=null;onerror:(()=>void)|null=null;postMessage=vi.fn();terminate=vi.fn();constructor(){workers.push(this);}send(data:WorkerMessage){this.onmessage?.({data});} }
@@ -9,6 +9,44 @@ beforeEach(()=>{workers=[];video={muted:false,playsInline:false,readyState:0,pau
 afterEach(()=>vi.unstubAllGlobals());
 function stream(){const track={stop:vi.fn(),onended:null};return{track,value:{getTracks:()=>[track],getVideoTracks:()=>[track]}};}
 describe('camera lifecycle and retries',()=>{
+  it('distinguishes loaded models from the first inference during GPU warmup',async()=>{
+    const m=new CameraManager(defaults);permission.mockResolvedValue(stream().value);await m.start();workers[0].send({type:'ready'});
+    expect(m.status).toBe('ready');expect(m.hasResult).toBe(false);workers[0].send({type:'result'});expect(m.hasResult).toBe(true);
+    m.setMode('pose');expect(m.hasResult).toBe(false);m.stop();
+  });
+  it('requests a high-frame-rate camera without requiring that hardware capability',async()=>{
+    const m=new CameraManager(defaults),s=stream();permission.mockResolvedValue(s.value);await m.start();
+    expect(permission).toHaveBeenCalledWith(expect.objectContaining({video:expect.objectContaining({frameRate:{ideal:60,max:60}})}));m.stop();
+  });
+  it('uses camera-frame callbacks and cancels them on model switches and stop',async()=>{
+    const request=vi.fn(()=>77),cancel=vi.fn();Object.assign(video,{requestVideoFrameCallback:request,cancelVideoFrameCallback:cancel});
+    const m=new CameraManager(defaults);permission.mockResolvedValue(stream().value);await m.start();workers[0].send({type:'ready'});
+    expect(request).toHaveBeenCalledOnce();expect(requestAnimationFrame).toHaveBeenCalledOnce();
+    m.setMode('pose');expect(cancel).toHaveBeenCalledWith(77);workers[1].send({type:'ready'});m.stop();expect(cancel).toHaveBeenCalledTimes(2);
+  });
+  it('continues recognizing frames if a detached video stops firing presentation callbacks',async()=>{
+    let now=0;vi.stubGlobal('performance',{now:()=>now});const capture=vi.fn().mockResolvedValue({close:vi.fn()});vi.stubGlobal('createImageBitmap',capture);
+    const request=vi.fn(()=>77);Object.assign(video,{requestVideoFrameCallback:request,cancelVideoFrameCallback:vi.fn(),readyState:2,currentTime:0});
+    const m=new CameraManager(defaults);permission.mockResolvedValue(stream().value);await m.start();workers[0].send({type:'ready'});await Promise.resolve();workers[0].send({type:'result'});
+    for(let i=1;i<=5;i++){now=i*40;video.currentTime=i*.04;const tick=vi.mocked(requestAnimationFrame).mock.lastCall![0];tick(now);await Promise.resolve();workers[0].send({type:'result'});}
+    expect(capture).toHaveBeenCalledTimes(6);expect(request).toHaveBeenCalledOnce();m.stop();
+  });
+  it('does not queue images during slow inference and keeps source dimensions when resizing',async()=>{
+    const bitmap={close:vi.fn()},capture=vi.fn().mockResolvedValue(bitmap);vi.stubGlobal('createImageBitmap',capture);
+    Object.assign(video,{readyState:2,currentTime:0,videoWidth:1280,videoHeight:720});
+    const m=new CameraManager(defaults);permission.mockResolvedValue(stream().value);await m.start();workers[0].send({type:'ready'});await Promise.resolve();
+    expect(capture).toHaveBeenCalledWith(video,{resizeWidth:640,resizeHeight:360,resizeQuality:'low'});
+    expect(workers[0].postMessage).toHaveBeenLastCalledWith(expect.objectContaining({type:'frame',width:1280,height:720}),[bitmap]);
+    for(let i=1;i<=10;i++){video.currentTime=i/30;m.loop();}
+    expect(capture).toHaveBeenCalledOnce();expect(m.busy).toBe(true);m.stop();
+  });
+  it.each([20,30])('avoids frame-rate rounding losses at %i Hz with a 30 Hz camera',async frequency=>{
+    let now=0;vi.stubGlobal('performance',{now:()=>now});const capture=vi.fn().mockResolvedValue({close:vi.fn()});vi.stubGlobal('createImageBitmap',capture);
+    Object.assign(video,{readyState:2,currentTime:0,videoWidth:640,videoHeight:480});
+    const m=new CameraManager({...defaults,frequency});permission.mockResolvedValue(stream().value);await m.start();workers[0].send({type:'ready'});await Promise.resolve();workers[0].send({type:'result'});
+    for(let i=1;i<=30;i++){now=i*1000/30;video.currentTime=i/30;m.loop();await Promise.resolve();workers[0].send({type:'result'});}
+    expect(capture.mock.calls.length).toBeGreaterThanOrEqual(frequency);expect(capture.mock.calls.length).toBeLessThanOrEqual(frequency+1);m.stop();
+  });
   it('handles permission denial and retries with exactly one stream',async()=>{const m=new CameraManager(defaults),s=stream();permission.mockRejectedValueOnce(new DOMException('denied','NotAllowedError')).mockResolvedValueOnce(s.value);await m.start();expect(m.status).toBe('error');expect(m.message).toContain('권한');await m.start();expect(m.status).toBe('loading');workers[0].send({type:'ready'});expect(m.status).toBe('ready');m.stop();expect(s.track.stop).toHaveBeenCalledOnce();expect(workers[0].terminate).toHaveBeenCalledOnce();});
   it('releases a late stream if the request was cancelled',async()=>{const m=new CameraManager(defaults),s=stream();let resolve!:(v:unknown)=>void;permission.mockReturnValue(new Promise(r=>resolve=r));const pending=m.start();m.stop();resolve(s.value);await pending;expect(s.track.stop).toHaveBeenCalledOnce();expect(m.stream).toBe(null);expect(m.status).toBe('off');});
   it('terminates the previous worker on mode switch without opening another camera',async()=>{const m=new CameraManager(defaults),s=stream();permission.mockResolvedValue(s.value);await m.start();workers[0].send({type:'ready'});m.setMode('pose');expect(workers[0].terminate).toHaveBeenCalledOnce();expect(permission).toHaveBeenCalledOnce();expect(workers[1].postMessage).toHaveBeenCalledWith(expect.objectContaining({type:'init',mode:'pose'}));m.stop();});

@@ -1,0 +1,52 @@
+{
+  "samples": [
+    {
+      "requestedHz": 20,
+      "frames": 35,
+      "observedHz": 11.630611770178032,
+      "latencyP50Ms": 67.10000000009313,
+      "latencyP95Ms": 92.29999999981374,
+      "inferenceP50Ms": 65.5,
+      "detectedFrames": 35,
+      "sourceDimensions": [
+        760,
+        600
+      ],
+      "delegate": "GPU",
+      "status": "ready",
+      "message": "",
+      "busy": true,
+      "video": {
+        "paused": false,
+        "time": 10.258444,
+        "state": 4
+      },
+      "hidden": false
+    },
+    {
+      "requestedHz": 30,
+      "frames": 43,
+      "observedHz": 14.27528052586282,
+      "latencyP50Ms": 54,
+      "latencyP95Ms": 110.59999999962747,
+      "inferenceP50Ms": 52.10000000009313,
+      "detectedFrames": 43,
+      "sourceDimensions": [
+        760,
+        600
+      ],
+      "delegate": "GPU",
+      "status": "ready",
+      "message": "",
+      "busy": true,
+      "video": {
+        "paused": false,
+        "time": 13.784023,
+        "state": 4
+      },
+      "hidden": false
+    }
+  ],
+  "cameraFrameCallbacks": true,
+  "note": "Real model and worker; an animated canvas displaying a still hand photo replaces the physical camera. These measurements are local, not human webcam accuracy or guaranteed device performance."
+}

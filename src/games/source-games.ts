@@ -9,7 +9,7 @@ type SourceAPI = {
   start(mode: string): void; pause(): void; resume(): void; reset(): void;
   command(command: Command): void; release(): void; advance(dt: number): void;
   snapshot(): Snapshot; practice(value: boolean): void; sound(value: boolean, context?: AudioContext, destination?: AudioNode): void;
-  configure(settings: Settings, scene: string): void; dispose(): void;
+  configure(settings: Settings, scene: string, motion?: boolean): void; dispose(): void;
   drawCharacter?: (ctx: CanvasRenderingContext2D, dino: { x:number; y:number; width:number; height:number; state:string; vy:number }, time:number) => boolean;
 };
 
@@ -24,34 +24,74 @@ document.body.append(hostSurface);
 `;
 const dinoBridge = `${sharedBridge}
 hostSurface.append(canvas);
-let hostSettings = { dinoSpeed:300, obstacleGap:1.75 }, hostMuted = true;
+let hostSettings = { dinoSpeed:260, obstacleGap:3.2 }, hostMuted = true, hostMotion = false, hostNextEncounterAt = 0;
+const hostMotionMaxSpeed = 10;
+let hostProtectionMs = 0, hostSafeObstacles = new WeakSet(), hostPendingCollisions = new Map();
+function hostBaseSpeed() { return (hostMotion ? 7.5 : 8) * hostSettings.dinoSpeed / 300; }
+function hostProtect(duration) {
+  hostProtectionMs = Math.max(hostProtectionMs, duration);
+  for (const ob of hostPendingCollisions.keys()) hostSafeObstacles.add(ob);
+  hostPendingCollisions.clear();
+}
+function hostResetAssist() {
+  hostProtectionMs = 0;
+  hostSafeObstacles = new WeakSet();
+  hostPendingCollisions.clear();
+}
+function hostCollide(ob) {
+  if (gameState !== 'running' || hostSafeObstacles.has(ob)) return;
+  // Let a protected obstacle pass normally instead of making it disappear or
+  // awarding the speed item's bonus. It stays safe until its trailing edge passes.
+  if (hostProtectionMs > 0) { hostSafeObstacles.add(ob); return; }
+  if (!hostMotion) { endGame(); return; }
+  // Give an actual late gesture 140ms to arrive before committing a collision.
+  if (!hostPendingCollisions.has(ob)) hostPendingCollisions.set(ob, 140);
+}
+function hostAdvanceAssist(dtMs) {
+  hostProtectionMs = Math.max(0, hostProtectionMs - dtMs);
+  for (const [ob, remaining] of hostPendingCollisions) {
+    if (!obstacles.includes(ob)) hostPendingCollisions.delete(ob);
+    else if (remaining <= dtMs) { hostPendingCollisions.clear(); endGame(); break; }
+    else hostPendingCollisions.set(ob, remaining - dtMs);
+  }
+}
 const originalDrawDino = drawDino;
 drawDino = function () {
   if (!window.motionGame.drawCharacter?.(ctx, dino, hostTime / 1000)) originalDrawDino();
 };
 const originalStartGame = startGame;
-startGame = function () { originalStartGame(); gameSpeed = 6 * hostSettings.dinoSpeed / 300; lastMilestone = -1; lastTime = hostTime; if (hostMuted) stopProceduralBgm(); };
+startGame = function () { hostResetAssist(); originalStartGame(); hostProtect(2000); gameSpeed = hostBaseSpeed(); hostNextEncounterAt = hostTime + 2500; lastMilestone = -1; lastTime = hostTime; if (hostMuted) stopProceduralBgm(); };
 const originalBeep = beep;
 beep = function (...args) { if (!hostMuted) originalBeep(...args); };
 window.motionGame = {
   start() { startGame(); },
   pause() { if (gameState === 'running') gameState = 'paused'; this.release(); bgmAudio.pause(); stopProceduralBgm(); },
-  resume() { if (gameState === 'paused') { gameState = 'running'; lastTime = hostTime; if (!hostMuted) startProceduralBgm(); } },
-  reset() { this.pause(); gameState = 'idle'; score = 0; distance = 0; groundOffset = 0; obstacles = []; items = []; resetDino(); updateReadouts(); },
-  command(c) { if (gameState !== 'running') return; if (c.type === 'jump') jump(); if (c.type === 'duck') dino.duckHeld = c.value; },
+  resume() { if (gameState === 'paused') { gameState = 'running'; lastTime = hostTime; hostProtect(1000); if (!hostMuted) startProceduralBgm(); } },
+  reset() { this.pause(); hostResetAssist(); gameState = 'idle'; score = 0; distance = 0; groundOffset = 0; obstacles = []; items = []; resetDino(); updateReadouts(); },
+  command(c) {
+    if (gameState !== 'running') return;
+    if (c.type === 'jump' && dino.state !== 'jump') { jump(); if (hostMotion) hostProtect(450); }
+    if (c.type === 'duck') {
+      if (hostMotion && c.value && !dino.duckHeld && dino.state !== 'jump') hostProtect(300);
+      dino.duckHeld = c.value;
+    }
+  },
   release() { dino.duckHeld = false; },
   practice(value) { hostPractice = value; document.body.classList.toggle('practice',value); },
-  configure(settings, scene) { hostSettings = settings; currentBackgroundId = scene; },
+  configure(settings, scene, motion = false) { hostSettings = settings; hostMotion = motion; currentBackgroundId = scene; },
   sound(value, context, destination) { hostMuted = !value; if(context && !audioCtx) { audioCtx = context; hostSharedAudio = true; hostDestination = destination; setupBgmGraph(); } if (value) { ensureAudio(); startProceduralBgm(); } else { bgmAudio.pause(); stopProceduralBgm(); } },
   advance(dt) {
     hostAccumulator += Math.min(dt, .05);
     while (hostAccumulator >= 1/60) { hostAccumulator -= 1/60; hostTime += 1000/60;
       if (hostPractice) { obstacles = []; items = []; nextSpawnDistance = distance + 10000; }
+      if (gameState === 'running') hostAdvanceAssist(1000/60);
+      const wasJumping = dino.state === 'jump';
       frame(hostTime);
+      if (hostMotion && gameState === 'running' && wasJumping && dino.state !== 'jump') hostProtect(180);
     }
   },
-  snapshot() { return { state:gameState, score:Math.floor(score), grounded:dino.state !== 'jump', dino:{...dino}, effects:{...effectTimers}, obstacles:obstacles.length, scene:currentBackgroundId, audio:{enabled:!hostMuted,context:audioCtx?.state??'off',music:bgmPlaying} }; },
-  dispose() { this.pause(); gameState = 'disposed'; if(!hostSharedAudio) audioCtx?.close(); this.drawCharacter = undefined; }
+  snapshot() { return { state:gameState, score:Math.floor(score), grounded:dino.state !== 'jump', dino:{...dino}, effects:{...effectTimers}, obstacles:obstacles.length, obstacleDetails:obstacles.map(ob=>({...ob})), speed:gameSpeed, time:hostTime, scene:currentBackgroundId, assist:{protectionMs:hostProtectionMs,pendingCollisions:hostPendingCollisions.size}, audio:{enabled:!hostMuted,context:audioCtx?.state??'off',music:bgmPlaying} }; },
+  dispose() { this.pause(); hostResetAssist(); gameState = 'disposed'; if(!hostSharedAudio) audioCtx?.close(); this.drawCharacter = undefined; }
 };
 frame(0);
 `;
@@ -98,8 +138,19 @@ export function sourceDocument(id: SourceId): string {
     .replace(/requestAnimationFrame\((?:frame|render)\);/g, '')
     .replace(/window\.addEventListener\((['"])key(down|up)\1,/g, 'window.addEventListener("source-disabled-key",');
   if (id === 'dino') {
-    html = html.replace("gameSpeed = Math.min(MAX_SPEED, 6 + score / 220);", "gameSpeed = Math.min(MAX_SPEED, 6 * hostSettings.dinoSpeed / 300 + score / 220);")
-      .replace('Math.max(160, gap) + encounterWidth', 'Math.max(160, gap * hostSettings.obstacleGap / 1.75) + encounterWidth');
+    html = html.replace('gameSpeed = Math.min(MAX_SPEED, 6 + score / 220);', 'gameSpeed = hostMotion ? Math.min(hostMotionMaxSpeed, hostBaseSpeed() + score / 1200) : Math.min(MAX_SPEED, hostBaseSpeed() + score / 220);')
+      .replace('dino.legTimer += dt;', 'dino.legTimer += dt * Math.max(1, gameSpeed / 6);')
+      .replace('            endGame();', '            hostCollide(ob);')
+      .replace('const comboChance = 0.15 + difficulty * 0.4;', 'const comboChance = hostMotion ? 0 : 0.15 + difficulty * 0.4;')
+      .replace('function randomSingleType() {', `function randomSingleType() {
+        if (hostMotion && hostSettings.dinoMode === 'seated') return Math.random() < .5 ? 'cactus-small' : 'cactus-large';`)
+      .replace('if (distance >= nextSpawnDistance) {', 'if (distance >= nextSpawnDistance && hostTime >= hostNextEncounterAt) {')
+      .replace('nextSpawnDistance = distance + Math.max(160, gap) + encounterWidth;', `
+        // Reserve a true time gap after the trailing edge at the maximum speed,
+        // including speed boosts, so later acceleration cannot crowd obstacles.
+        const maxTravelSpeed = (hostMotion ? hostMotionMaxSpeed : MAX_SPEED) * 1.3 * 60;
+        nextSpawnDistance = distance + maxTravelSpeed * hostSettings.obstacleGap + encounterWidth;
+        hostNextEncounterAt = hostTime + hostSettings.obstacleGap * 1000;`);
     html = html.replace('})();', `${dinoBridge}\n})();`);
   } else {
     const end = html.lastIndexOf('</script>');
@@ -128,13 +179,14 @@ export class SourceGame implements GameAdapter {
   state: GameState = 'ready'; score = 0; grounded = true;
   api: SourceAPI | null = null; visual: CharacterVisual | null = null;
   mode = 'EASY'; scene = 'day'; practicing = false;
+  motion = false;
   private appliedPractice: boolean | null = null;
   constructor(public id: SourceId, public settings: Settings, private emit: (event:GameEvent)=>void = ()=>{}) {}
   attach(frame: HTMLIFrameElement) {
     this.api = (frame.contentWindow as (Window & { motionGame?: SourceAPI }) | null)?.motionGame ?? null;
     this.appliedPractice = null;
     if (!this.api) return false;
-    this.api.configure(this.settings, this.scene);
+    this.configure();
     this.api.drawCharacter = (ctx,dino,time) => {
       if(!this.visual) return false;
       drawCharacter(ctx,this.visual,dino.x+dino.width/2,dino.y+dino.height,dino.state==='duck'?'duck':dino.state==='jump'?(dino.vy<0?'jump':'air'):'run',time,62);
@@ -142,7 +194,7 @@ export class SourceGame implements GameAdapter {
     };
     return true;
   }
-  configure() { this.api?.configure(this.settings,this.scene); }
+  configure() { this.api?.configure(this.settings,this.scene,this.motion); }
   prepare() { this.restart(); }
   start() { if(this.state==='disposed'||!this.api)return;this.api.start(this.mode);this.syncPractice();this.state='running'; }
   pause() { if(this.state==='running'){this.api?.pause();this.state='paused';} }

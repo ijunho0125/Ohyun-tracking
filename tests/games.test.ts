@@ -48,10 +48,13 @@ describe.each(['dino', 'tetris'] as const)('%s source adapter', id => {
 
   it('configures the attached game and forwards the selected difficulty and scene', () => {
     const { game, api } = sourceFixture(id);
-    expect(api.configure).toHaveBeenCalledWith(defaults, 'day');
+    expect(api.configure).toHaveBeenCalledWith(defaults, 'day', false);
     game.scene = 'beach';
     game.configure();
-    expect(api.configure).toHaveBeenLastCalledWith(defaults, 'beach');
+    expect(api.configure).toHaveBeenLastCalledWith(defaults, 'beach', false);
+    game.motion = true;
+    game.configure();
+    expect(api.configure).toHaveBeenLastCalledWith(defaults, 'beach', true);
     game.mode = 'HARD';
     game.start();
     expect(api.start).toHaveBeenCalledWith('HARD');

@@ -46,8 +46,8 @@ try{
  for(const name of ['자르기·발 위치','배경 제거','그림']){await button(name).click();await fits('character '+name);}
  await page.locator('input[type=file]').setInputFiles(fileURLToPath(new URL('./fixtures/character.png',import.meta.url)));
  await page.getByText('그림을 불러왔어요. 발 기준점을 맞춰보세요.',{exact:true}).waitFor();
- await page.getByLabel('캐릭터 이름',{exact:true}).fill('원본 게임 연결 테스트');await button('저장하고 선택').click();
- await page.getByText('이 브라우저에 저장하고 플레이 캐릭터로 선택했어요.',{exact:true}).waitFor();await fits('saved character');await shot('viewport-character');
+ await page.getByLabel('캐릭터 이름',{exact:true}).fill('원본 게임 연결 테스트');await button('이미지 저장').click();
+ await page.getByText('사이트에 저장하고 연결된 디노 런에 적용했어요.',{exact:true}).waitFor();await fits('saved character');await shot('viewport-character');
  await page.getByRole('button',{name:/보관함 \(/}).click();await fits('character library');await button('그림 편집').click();
  pass('character tabs, actual image processing/storage and paginated library');
  await nav('기술 체험관');await fits('tracking lab');await button('몸').click();await fits('body lab');await button('그림 움직임').click();await fits('drawing lab');await shot('viewport-lab');

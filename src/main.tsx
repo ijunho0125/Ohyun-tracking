@@ -1,5 +1,10 @@
 import { createRoot } from 'react-dom/client';
+import { lazy, Suspense } from 'react';
 import App from './App';
 import './styles.css';
 import './festival.css';
-createRoot(document.getElementById('root')!).render(<App/>);
+import './drawing.css';
+const DrawingPage=lazy(()=>import('./components/DrawingPage'));
+const drawing=location.pathname.replace(/\/$/,'')===`${import.meta.env.BASE_URL}draw`.replace(/\/$/,'') || new URLSearchParams(location.search).has('draw');
+if(drawing)document.body.classList.add('drawing-route');
+createRoot(document.getElementById('root')!).render(drawing?<Suspense fallback={<p role="status">그림 패드를 불러오는 중…</p>}><DrawingPage/></Suspense>:<App/>);

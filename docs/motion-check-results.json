@@ -6,7 +6,7 @@
     "16:9 raw-coordinate overlay matches video bounds and mirror, including enlargement, zoom and display toggle",
     "tiger tutorial advances on actual mock landmarks, motion selection and confirmed release, not mouse clicks or time",
     "open-palm next and finish work; held cursor cannot advance successive screens or fabricate practice completion",
-    "original tetris: left/right fists move, nod-return rotates once, both fists instantly drop once per cycle, wrist bends do nothing",
+    "original tetris: left/right fists move, jump rotates once per rise, crouch holds soft drop until standing or tracking loss, both fists instantly drop once per cycle, head and wrist bends do nothing",
     "lost hands clear overlays, release held input and automatically pause the game",
     "12 game switches retain one stream, one live worker, at most two RAF callbacks and no duplicated game listeners",
     "stalled inference expires old landmarks and cursor"
@@ -16,10 +16,10 @@
       "streams": 1,
       "liveWorkers": 1,
       "maxWorkers": 1,
-      "frames": 514,
+      "frames": 771,
       "clicks": 5
     },
-    "raf": 2,
+    "raf": 1,
     "listeners": {
       "document:visibilitychange": 2,
       "window:pointerup": 1,

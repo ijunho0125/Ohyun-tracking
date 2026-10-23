@@ -41,7 +41,7 @@ try{
  await button('카메라 접기').click();assert.equal(await page.locator('.camera-floating .camera-screen').isVisible(),false);assert.equal(await button('카메라 펼치기').getAttribute('aria-expanded'),'false');await button('카메라 펼치기').click();await button('카메라 위치 바꾸기').click();
  pass('stage fills the viewport; camera floats above it with position, collapse and keyboard-operable controls');
  await button('소리 끄기').click();assert.equal((await state()).audio.enabled,false);assert.equal(await button('소리 켜기').getAttribute('aria-pressed'),'false');await button('소리 켜기').click();await audible();assert((await state()).audio.music);
- await button('조작 준비하기').click();await page.keyboard.press('ArrowLeft');await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowUp');await page.keyboard.press('Space');await button('연습 완료 · 게임 시작').waitFor();
+ await button('조작 준비하기').click();await page.keyboard.press('ArrowLeft');await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowUp');await page.keyboard.press('ArrowDown');await button('연습 완료 · 게임 시작').waitFor();
  const board=await page.locator('iframe').evaluate(frame=>{const rect=frame.contentDocument.getElementById('tetrisCanvas').getBoundingClientRect();return {bottom:rect.bottom+frame.getBoundingClientRect().top};});assert(board.bottom<(await page.locator('.practice-strip').boundingBox()).y-6,'practice controls must not cover the last board row');
  await page.screenshot({path:fileURLToPath(new URL('../docs/screenshots/festival-tetris.png',import.meta.url))});
  await button('일시정지').click();await page.waitForFunction(()=>window.__activeAudio.state==='suspended');await button('카운트다운 후 재개').click();await audible();await leave();

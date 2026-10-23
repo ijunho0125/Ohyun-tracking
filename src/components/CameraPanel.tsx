@@ -4,7 +4,6 @@ import type { CameraManager } from '../motion/camera';
 import type { MotionFrame } from '../core/types';
 import { inspectHand } from '../motion/hands';
 import { isDrawableLandmark } from '../motion/landmarks';
-import { headPitch } from '../motion/nod';
 import { Modal } from './Modal';
 export const HAND_CONNECTIONS = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[0,17],[17,18],[18,19],[19,20]];
 export const POSE_CONNECTIONS = [[0,1],[1,2],[2,3],[3,7],[0,4],[4,5],[5,6],[6,8],[9,10],[11,12],[11,13],[13,15],[15,17],[15,19],[15,21],[17,19],[12,14],[14,16],[16,18],[16,20],[16,22],[18,20],[11,23],[12,24],[23,24],[23,25],[25,27],[27,29],[29,31],[27,31],[24,26],[26,28],[28,30],[30,32],[28,32]];
@@ -26,7 +25,7 @@ function Preview({camera,frame,tracking,fresh}:{camera:CameraManager;frame:Motio
     const c=overlay.current!,ctx=c.getContext('2d')!;ctx.clearRect(0,0,c.width,c.height);
     if(!frame||!fresh||!tracking||camera.status!=='ready')return;
     const draw=(points:MotionFrame['pose'],connections:number[][],color:string,kind:'hand'|'pose')=>{
-      const visible=(i:number)=>(kind==='hand'||camera.mode!=='tetris'||i<=12)&&isDrawableLandmark(points[i],kind);
+      const visible=(i:number)=>isDrawableLandmark(points[i],kind);
       const unit=Math.max(1,width/640);ctx.lineCap='round';ctx.lineJoin='round';
       for(const [a,b] of connections){if(!visible(a)||!visible(b))continue;const p=landmarkPixel(points[a],width,height),q=landmarkPixel(points[b],width,height);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.strokeStyle='#282120';ctx.lineWidth=5*unit;ctx.stroke();ctx.strokeStyle=color;ctx.lineWidth=2.5*unit;ctx.stroke();}
       points.forEach((p,i)=>{if(!visible(i))return;const pos=landmarkPixel(p,width,height);ctx.beginPath();ctx.arc(pos.x,pos.y,3.5*unit,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();ctx.strokeStyle='#282120';ctx.lineWidth=1.5*unit;ctx.stroke();});
@@ -37,7 +36,7 @@ function Preview({camera,frame,tracking,fresh}:{camera:CameraManager;frame:Motio
   return <div className="camera-screen" style={{aspectRatio:`${width} / ${height}`}}>
     <video ref={video} muted playsInline aria-label="좌우 반전된 카메라 영상"/><canvas ref={overlay} width={width} height={height} aria-label="실제 인식 관절점과 연결선"/>
     {camera.status!=='ready'&&<div className="camera-empty"><CameraOff size={30}/><strong>{camera.status==='loading'?'인식 모델 준비 중':camera.status==='requesting'?'카메라 권한을 기다려요':'카메라 연결 대기'}</strong><p>{camera.message||'내 손과 몸의 움직임을 여기서 확인해요.'}</p></div>}
-    {camera.status==='ready'&&<span className={`camera-badge ${fresh?'':'tracking-lost'}`}>{fresh?(camera.mode==='tetris'?'손·고개 인식 중':camera.mode==='hand'?(frame?.hands.length?'손 인식 중':'손을 찾는 중'):(frame?.pose.length?'몸 인식 중':'몸을 찾는 중')):'인식 중단 · 자세를 확인해주세요'}</span>}
+    {camera.status==='ready'&&<span className={`camera-badge ${fresh?'':'tracking-lost'}`}>{fresh?(camera.mode==='tetris'?'손·몸 인식 중':camera.mode==='hand'?(frame?.hands.length?'손 인식 중':'손을 찾는 중'):(frame?.pose.length?'몸 인식 중':'몸을 찾는 중')):'인식 중단 · 자세를 확인해주세요'}</span>}
   </div>;
 }
 export function CameraPanel({camera,frame,connect,large=false,compact=false}:{camera:CameraManager;frame:MotionFrame|null;connect:()=>void;large?:boolean;compact?:boolean}) {
@@ -52,8 +51,7 @@ export function CameraPanel({camera,frame,connect,large=false,compact=false}:{ca
   const hand=fresh?frame.hands.find(h=>h.side===camera.settings.hand):undefined,shape=inspectHand(hand,frame?frame.width/frame.height:4/3).shape;
   const detectedHands=fresh?[...new Set(frame.hands.map(h=>h.side==='Right'?'오른손':'왼손'))].join('·'):'';
   const poseVisible=fresh&&[11,12,23,24].every(i=>frame.pose[i]&&(frame.pose[i].visibility??1)>=.55&&(frame.pose[i].presence??1)>=.55);
-  const faceVisible=fresh&&headPitch(frame.pose,frame.width/frame.height)!==null;
-  const hint=camera.status!=='ready'?'밝은 곳에서 카메라를 연결해주세요.':camera.mode==='tetris'?faceVisible&&frame?.hands.length===2?'얼굴·양손 인식 중':'얼굴과 양손을 보여주세요.':camera.mode==='pose'?poseVisible?'어깨와 골반을 찾았어요. 편하게 움직여보세요.':'몸 전체가 보이게 카메라에서 조금 떨어져주세요.':compact?(fresh&&frame.hands.length===2?'양손 인식 중':'양손 전체를 보여주세요.'):shape==='unknown'?`${camera.settings.hand==='Right'?'오른손':'왼손'} 전체가 보이게 해주세요.`:shape==='open'?'손 인식 중 · 카드를 가리킨 뒤 주먹을 쥐세요.':'손을 펴주세요. 다음 선택을 준비할 수 있어요.';
+  const hint=camera.status!=='ready'?'밝은 곳에서 카메라를 연결해주세요.':camera.mode==='tetris'?poseVisible&&frame?.hands.length===2?'양손·몸 인식 중':'양손과 어깨·골반을 보여주세요.':camera.mode==='pose'?poseVisible?'어깨와 골반을 찾았어요. 편하게 움직여보세요.':'몸 전체가 보이게 카메라에서 조금 떨어져주세요.':compact?(fresh&&frame.hands.length===2?'양손 인식 중':'양손 전체를 보여주세요.'):shape==='unknown'?`${camera.settings.hand==='Right'?'오른손':'왼손'} 전체가 보이게 해주세요.`:shape==='open'?'손 인식 중 · 카드를 가리킨 뒤 주먹을 쥐세요.':'손을 펴주세요. 다음 선택을 준비할 수 있어요.';
   const content=<>
     <Preview camera={camera} frame={frame} tracking={tracking} fresh={fresh}/><p className="tracking-hint" role="status">{hint}</p>
     {camera.status==='ready'&&camera.mode==='hand'&&<p className="privacy-note detected-hands">감지된 손: {detectedHands||'없음'} · 조작 손: {camera.settings.hand==='Right'?'오른손':'왼손'}</p>}

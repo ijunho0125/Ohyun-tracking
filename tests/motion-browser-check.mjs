@@ -4,6 +4,7 @@ import {writeFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {fixtureHand,translateHand,rollHand} from './hand-fixtures.ts';
 import {fixtureFace} from './nod-fixtures.ts';
+import {fixtureBody} from './pose-fixtures.ts';
 const browser=await chromium.launch({channel:'chrome',headless:true});
 const context=await browser.newContext({viewport:{width:1440,height:1000},reducedMotion:'reduce'});
 await context.addInitScript(()=>{
@@ -22,7 +23,7 @@ await context.addInitScript(()=>{
   window.Worker=class {
     onmessage=null;onerror=null;dead=false;mode='hand';
     constructor(){window.__mockStats.liveWorkers++;window.__mockStats.maxWorkers=Math.max(window.__mockStats.maxWorkers,window.__mockStats.liveWorkers);}
-    postMessage(data){if(data.type==='init'){this.mode=data.mode;setTimeout(()=>{if(!this.dead)this.onmessage?.({data:{type:'ready'}});},0);}if(data.type==='frame'){const width=data.bitmap.width,height=data.bitmap.height;data.bitmap.close();window.__mockStats.frames++;if(window.__dropFrames)return;setTimeout(()=>{if(!this.dead)this.onmessage?.({data:{type:'result',time:data.time,width,height,inferenceMs:2,hands:this.mode!=='pose'?structuredClone(window.__fixture.hands):[],pose:this.mode!=='hand'?structuredClone(window.__fixture.pose):[]}});},5);}}
+    postMessage(data){if(data.type==='init'){this.mode=data.mode;setTimeout(()=>{if(!this.dead)this.onmessage?.({data:{type:'ready'}});},0);}if(data.type==='frame'){const width=data.width||data.bitmap.width,height=data.height||data.bitmap.height;data.bitmap.close();window.__mockStats.frames++;if(window.__dropFrames)return;setTimeout(()=>{if(!this.dead)this.onmessage?.({data:{type:'result',time:data.time,width,height,inferenceMs:2,hands:this.mode!=='pose'?structuredClone(window.__fixture.hands):[],pose:this.mode!=='hand'?structuredClone(window.__fixture.pose):[]}});},5);}}
     terminate(){if(!this.dead){this.dead=true;window.__mockStats.liveWorkers--;}}
   };
   document.addEventListener('click',e=>{if(!e.isTrusted&&e.target.closest('[data-hand]'))window.__mockStats.clicks++;},true);
@@ -30,7 +31,7 @@ await context.addInitScript(()=>{
 const page=await context.newPage(),errors=[],checks=[];page.on('pageerror',e=>errors.push(e.message));
 const pass=name=>{checks.push(name);console.log('PASS: '+name);};
 const fixture=async(hands,ms=400,pose=[])=>{await page.evaluate(data=>{window.__fixture=data;},{hands,pose});await page.waitForTimeout(ms);};
-const gameFixture=(hands,ms=400,pose=fixtureFace())=>fixture(hands,ms,pose);
+const gameFixture=(hands,ms=400,pose=fixtureBody())=>fixture(hands,ms,pose);
 const nav=()=>page.getByRole('navigation',{name:'주요 메뉴'});
 async function lobby(){if(await page.locator('.back-button').count())await page.locator('.back-button').click();else await nav().getByRole('button',{name:'게임 로비',exact:true}).click();await page.waitForFunction(()=>!document.fullscreenElement);}
 const sourceState=()=>page.locator('iframe.source-game').evaluate(f=>f.contentWindow.motionGame.snapshot());
@@ -62,18 +63,29 @@ try{
   await fixture([fixtureHand()],300);await fixture([await pointing('.tutorial-next')],1200);await page.getByRole('button',{name:'조작 준비하기',exact:true}).waitFor();
   await page.getByRole('button',{name:'키보드로',exact:true}).click();await page.getByRole('button',{name:'조작 준비하기',exact:true}).click();await page.keyboard.press('Space');await page.keyboard.press('ArrowDown');await page.getByRole('button',{name:'연습 마치기',exact:true}).waitFor();await page.getByRole('heading',{name:'잠깐 쉬어가요',exact:true}).waitFor();await fixture([await pointing('[data-hand-id="tutorial-finish"]')],1200);await page.getByRole('heading',{name:'플레이할 준비 완료',exact:true}).waitFor();pass('open-palm next and finish work; held cursor cannot advance successive screens or fabricate practice completion');
   const clicksBeforeGame=await page.evaluate(()=>window.__mockStats.clicks);
-  await lobby();await page.locator('.game-card.tetris').click();await fixture([fixtureHand('Left'),fixtureHand()],500);await page.getByRole('button',{name:'조작 준비하기',exact:true}).click();await page.locator('.practice-strip').waitFor();
+  await lobby();await page.locator('.game-card.tetris').click();await gameFixture([fixtureHand('Left'),fixtureHand()],500);await page.getByRole('button',{name:'조작 준비하기',exact:true}).click();await page.locator('.game-view[data-phase="calibration"]').waitFor();await page.locator('.practice-strip').waitFor();
   await fixture([fixtureHand('Left'),fixtureHand()],500);
   await gameFixture([fixtureHand('Left'),fixtureHand()],700);
   await page.locator('iframe').evaluate(frame=>{const api=frame.contentWindow.motionGame,original=api.command;window.__commands=[];api.command=command=>{window.__commands.push({...command});original.call(api,command);};});
   const beforeLeft=await sourceState();await gameFixture([fixtureHand('Left','fist'),fixtureHand()],400);const afterLeft=await sourceState();assert(afterLeft.figure.x<beforeLeft.figure.x);
   await gameFixture([fixtureHand('Left'),fixtureHand('Right','fist')],400);const afterRight=await sourceState();assert(afterRight.figure.x>afterLeft.figure.x);
   await gameFixture([fixtureHand('Left'),fixtureHand()],250);const beforeWrist=await sourceState();await gameFixture([rollHand(fixtureHand('Left'),.65),fixtureHand()],300);assert.equal((await sourceState()).figure.x,beforeWrist.figure.x);assert.equal(await page.evaluate(()=>window.__commands.filter(c=>c.type==='rotate').length),0);
-  await gameFixture([fixtureHand('Left'),fixtureHand()],250,fixtureFace(.04));await gameFixture([fixtureHand('Left'),fixtureHand()],250);assert.equal(await page.evaluate(()=>window.__commands.filter(c=>c.type==='rotate').length),1);
+  const headOnly=fixtureBody();headOnly.splice(0,11,...fixtureFace(.04).slice(0,11));
+  await gameFixture([fixtureHand('Left'),fixtureHand()],300,headOnly);assert.equal(await page.evaluate(()=>window.__commands.filter(c=>c.type==='rotate').length),0);
+  await gameFixture([fixtureHand('Left'),fixtureHand()],300,fixtureBody(-.045));assert.equal(await page.evaluate(()=>window.__commands.filter(c=>c.type==='rotate').length),1);
+  await gameFixture([fixtureHand('Left'),fixtureHand()],400,fixtureBody(-.045));assert.equal(await page.evaluate(()=>window.__commands.filter(c=>c.type==='rotate').length),1);
+  await gameFixture([fixtureHand('Left'),fixtureHand()],400);await gameFixture([fixtureHand('Left'),fixtureHand()],300,fixtureBody(-.045));assert.equal(await page.evaluate(()=>window.__commands.filter(c=>c.type==='rotate').length),2);
+  await gameFixture([fixtureHand('Left'),fixtureHand()],300);
+  await gameFixture([fixtureHand('Left'),fixtureHand()],400,fixtureBody(.07));assert.equal((await sourceState()).pressingDown,true);
+  await gameFixture([fixtureHand('Left'),fixtureHand('Right','fist')],400,fixtureBody(.07));assert.equal((await sourceState()).pressingDown,true);
+  await gameFixture([fixtureHand('Left'),fixtureHand()],300);assert.equal((await sourceState()).pressingDown,false);
+  await gameFixture([fixtureHand('Left'),fixtureHand()],250,fixtureBody(.07));assert.equal((await sourceState()).pressingDown,true);
+  await fixture([],150,fixtureBody(.07));assert.equal((await sourceState()).pressingDown,false);
+  await gameFixture([fixtureHand('Left'),fixtureHand()],400);
   const beforeDrop=await sourceState();await gameFixture([fixtureHand('Left','fist'),fixtureHand('Right','fist')],400);const afterDrop=await sourceState();assert(afterDrop.field.flat().filter(Boolean).length>beforeDrop.field.flat().filter(Boolean).length);assert.equal(await page.evaluate(()=>window.__commands.filter(c=>c.type==='hardDrop').length),1);
   await gameFixture([fixtureHand('Left','fist'),fixtureHand('Right','fist')],500);assert.equal(await page.evaluate(()=>window.__commands.filter(c=>c.type==='hardDrop').length),1);
   await gameFixture([fixtureHand('Left'),fixtureHand()],250);await gameFixture([fixtureHand('Left','fist'),fixtureHand('Right','fist')],400);assert.equal(await page.evaluate(()=>window.__commands.filter(c=>c.type==='hardDrop').length),2);
-  assert.equal(await page.locator('.hand-cursor').count(),0);assert.equal(await page.evaluate(()=>window.__mockStats.clicks),clicksBeforeGame);await page.screenshot({path:fileURLToPath(new URL('../docs/screenshots/festival-motion.png',import.meta.url))});pass('original tetris: left/right fists move, nod-return rotates once, both fists instantly drop once per cycle, wrist bends do nothing');
+  assert.equal(await page.locator('.hand-cursor').count(),0);assert.equal(await page.evaluate(()=>window.__mockStats.clicks),clicksBeforeGame);await page.screenshot({path:fileURLToPath(new URL('../docs/screenshots/festival-motion.png',import.meta.url))});pass('original tetris: left/right fists move, jump rotates once per rise, crouch holds soft drop until standing or tracking loss, both fists instantly drop once per cycle, head and wrist bends do nothing');
   await fixture([],1800);assert.equal((await sourceState()).pressingDown,false);await page.getByRole('heading',{name:'잠깐 쉬어가요',exact:true}).waitFor();assert.equal(await page.locator('.camera-screen canvas').first().evaluate(c=>c.getContext('2d').getImageData(0,0,c.width,c.height).data.some((v,i)=>i%4===3&&v)),false);pass('lost hands clear overlays, release held input and automatically pause the game');
   for(let i=0;i<12;i++){await lobby();await page.locator('.game-card.'+(['dino','tetris','balance'][i%3])).click();}
   await page.waitForTimeout(200);const stats=await page.evaluate(()=>({mock:window.__mockStats,raf:window.__pendingRAF(),listeners:window.__listenerCounts(),details:window.__listenerDetails()}));assert.equal(stats.mock.streams,1);assert.equal(stats.mock.maxWorkers,1);assert.equal(stats.mock.liveWorkers,1);assert(stats.raf<=2);for(const [name,count] of Object.entries(stats.listeners))assert(count<=(name==='document:visibilitychange'?2:1),name+': '+count);pass('12 game switches retain one stream, one live worker, at most two RAF callbacks and no duplicated game listeners');
