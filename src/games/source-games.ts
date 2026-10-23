@@ -70,7 +70,12 @@ window.motionGame = {
   reset() { this.pause(); hostResetAssist(); gameState = 'idle'; score = 0; distance = 0; groundOffset = 0; obstacles = []; items = []; resetDino(); updateReadouts(); },
   command(c) {
     if (gameState !== 'running') return;
-    if (c.type === 'jump' && dino.state !== 'jump') { jump(); if (hostMotion) hostProtect(450); }
+    if (c.type === 'jump' && dino.state !== 'jump') {
+      // A crouched sprite is shorter. Align its feet before restoring standing
+      // height, otherwise the first physics step immediately lands the jump.
+      dino.y = GROUND_Y - STAND_H;
+      jump(); if (hostMotion) hostProtect(450);
+    }
     if (c.type === 'duck') {
       if (hostMotion && c.value && !dino.duckHeld && dino.state !== 'jump') hostProtect(300);
       dino.duckHeld = c.value;
@@ -138,7 +143,9 @@ export function sourceDocument(id: SourceId): string {
     .replace(/requestAnimationFrame\((?:frame|render)\);/g, '')
     .replace(/window\.addEventListener\((['"])key(down|up)\1,/g, 'window.addEventListener("source-disabled-key",');
   if (id === 'dino') {
-    html = html.replace('gameSpeed = Math.min(MAX_SPEED, 6 + score / 220);', 'gameSpeed = hostMotion ? Math.min(hostMotionMaxSpeed, hostBaseSpeed() + score / 1200) : Math.min(MAX_SPEED, hostBaseSpeed() + score / 220);')
+    // Lift the original music in the hosted game without boosting individual effects.
+    html = html.replace('bgmMasterGain.gain.linearRampToValueAtTime(0.42, audioCtx.currentTime + 0.4);', 'bgmMasterGain.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 0.4);')
+      .replace('gameSpeed = Math.min(MAX_SPEED, 6 + score / 220);', 'gameSpeed = hostMotion ? Math.min(hostMotionMaxSpeed, hostBaseSpeed() + score / 1200) : Math.min(MAX_SPEED, hostBaseSpeed() + score / 220);')
       .replace('dino.legTimer += dt;', 'dino.legTimer += dt * Math.max(1, gameSpeed / 6);')
       .replace('            endGame();', '            hostCollide(ob);')
       .replace('const comboChance = 0.15 + difficulty * 0.4;', 'const comboChance = hostMotion ? 0 : 0.15 + difficulty * 0.4;')
@@ -153,6 +160,7 @@ export function sourceDocument(id: SourceId): string {
         hostNextEncounterAt = hostTime + hostSettings.obstacleGap * 1000;`);
     html = html.replace('})();', `${dinoBridge}\n})();`);
   } else {
+    html = html.replace('gain.gain.setValueAtTime(0.02, now);', 'gain.gain.setValueAtTime(0.16, now);');
     const end = html.lastIndexOf('</script>');
     html = html.slice(0, end) + tetrisBridge + html.slice(end);
   }
@@ -196,13 +204,13 @@ export class SourceGame implements GameAdapter {
   }
   configure() { this.api?.configure(this.settings,this.scene,this.motion); }
   prepare() { this.restart(); }
-  start() { if(this.state==='disposed'||!this.api)return;this.api.start(this.mode);this.syncPractice();this.state='running'; }
+  start() { if(this.state==='disposed'||!this.api)return;this.api.start(this.mode);this.grounded=this.api.snapshot().grounded;this.syncPractice();this.state='running'; }
   pause() { if(this.state==='running'){this.api?.pause();this.state='paused';} }
   resume() { if(this.state==='paused'){this.api?.resume();this.state='running';} }
-  restart() { if(this.state==='disposed')return;this.api?.reset();this.score=0;this.state='ready'; }
+  restart() { if(this.state==='disposed')return;this.api?.reset();this.grounded=this.api?.snapshot().grounded??true;this.score=0;this.state='ready'; }
   finish() { if(this.state==='disposed'||this.state==='over')return;this.api?.pause();this.state='over';this.emit({type:'over',score:this.score}); }
   dispose() { this.api?.dispose();this.api=null;this.state='disposed'; }
-  command(command: Command) { if(this.state==='running')this.api?.command(command); }
+  command(command: Command) { if(this.state==='running'&&this.api){this.api.command(command);if(command.type==='jump')this.grounded=this.api.snapshot().grounded;} }
   release() { this.api?.release(); }
   private syncPractice() {
     if (this.api && this.appliedPractice !== this.practicing) {

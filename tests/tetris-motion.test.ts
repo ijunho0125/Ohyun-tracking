@@ -15,6 +15,18 @@ function calibrated() {
 }
 
 describe('combined Tetris body and hand controls', () => {
+  it.each([10,20,30,60])('rotates on the second small-jump sample at %i Hz',frequency=>{
+    const controls=calibrated(),step=1000/frequency;let now=1700;
+    expect(controls.update(open(),fixtureBody(-.021),now+=step,4/3,defaults).commands).not.toContainEqual({type:'rotate'});
+    const commands=controls.update(open(),fixtureBody(-.021),now+=step,4/3,defaults).commands;
+    expect(commands).toContainEqual({type:'rotate'});
+    expect(commands).toContainEqual({type:'softDrop',value:false});
+  });
+  it.each([10,20,30,60])('never rotates from one large tracking spike with default smoothing at %i Hz',frequency=>{
+    const controls=calibrated(),step=1000/frequency;let now=1700;
+    expect(controls.update(open(),fixtureBody(-.2),now+=step,4/3,defaults).commands).not.toContainEqual({type:'rotate'});
+    for(let i=0;i<12;i++)expect(controls.update(open(),fixtureBody(),now+=step,4/3,defaults).commands).not.toContainEqual({type:'rotate'});
+  });
   it.each([10,20,30])('rotates once per jump and rearms after standing at %i Hz', frequency => {
     const controls = calibrated(), step = 1000/frequency;
     let now = 1700;
@@ -28,6 +40,16 @@ describe('combined Tetris body and hand controls', () => {
     expect([...commands,...next].some(c => c.type==='jump'||c.type==='duck'||c.type==='tilt')).toBe(false);
   });
 
+  it.each([10,20,30])('rotates once for a small jump without repeating at a held apex at %i Hz', frequency => {
+    const controls=calibrated(),step=1000/frequency;let now=1700;
+    for(let cycle=0;cycle<2;cycle++){
+      const commands:Command[]=[];
+      for(let i=0;i<16;i++)commands.push(...controls.update(open(),fixtureBody(-.021),now+=step,4/3,defaults).commands);
+      expect(commands.filter(c=>c.type==='rotate')).toHaveLength(1);
+      for(let i=0;i<8;i++)controls.update(open(),fixtureBody(),now+=step,4/3,defaults);
+    }
+  });
+
   it('holds soft drop while crouching, allows fist movement, and releases on standing', () => {
     const controls = calibrated();
     for (let i=0;i<8;i++) {
@@ -37,6 +59,21 @@ describe('combined Tetris body and hand controls', () => {
       if(i===4) expect(result.commands).toContainEqual({type:'move',value:1});
     }
     expect(controls.update(open(), fixtureBody(), 2200, 4/3, settings).commands).toContainEqual({type:'softDrop',value:false});
+  });
+
+  it.each([10,20,30])('rotates again directly after crouching and releases soft drop at %i Hz',frequency=>{
+    const controls=calibrated(),step=1000/frequency;let now=1700;
+    for(let cycle=0;cycle<3;cycle++){
+      const commands:Command[]=[];
+      for(let i=0;i<8;i++){
+        const frame=controls.update(open(),fixtureBody(-.021),now+=step,4/3,defaults).commands;
+        if(frame.some(c=>c.type==='rotate'))expect(frame).toContainEqual({type:'softDrop',value:false});
+        commands.push(...frame);
+      }
+      expect(commands.filter(c=>c.type==='rotate')).toHaveLength(1);
+      for(let i=0;i<12;i++)controls.update(open(),fixtureBody(.07),now+=step,4/3,defaults);
+      expect(controls.pose.duck).toBe(true);
+    }
   });
 
   it('moves in each physical fist direction independently of the menu hand setting', () => {

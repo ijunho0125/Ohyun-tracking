@@ -87,6 +87,13 @@ try {
 
     for(const dinoMode of ['body','seated']) {
       fresh(true,dinoMode);
+      api.command({type:'duck',value:true});tick();
+      check(api.snapshot().dino.state==='duck','fixture is physically crouched');
+      api.command({type:'duck',value:false});api.command({type:'jump'});tick();
+      check(!api.snapshot().grounded&&api.snapshot().dino.vy<0,'crouch jump remains airborne after its first physics step');
+      const takeoffY=api.snapshot().dino.y;tick(3);
+      check(api.snapshot().dino.y<takeoffY,'crouch jump continues climbing instead of immediately landing');
+      fresh(true,dinoMode);
       check(api.snapshot().speed===6.5,'default motion speed increases from 3.9 to 6.5');
       check(api.snapshot().assist.protectionMs===2000,'two seconds of startup protection');
       fixture.obstacle();tick();
@@ -166,7 +173,11 @@ try {
           window.__frames++;
           const width=data.bitmap.width,height=data.bitmap.height;data.bitmap.close();
           const delay=this.first?window.__firstFrameDelay:0;this.first=false;
-          setTimeout(()=>{if(!this.dead)this.onmessage?.({data:{type:'result',time:data.time,width,height,inferenceMs:1,hands:[],pose:this.mode==='hand'?[]:structuredClone(window.__pose)}});},delay);
+          setTimeout(()=>{if(!this.dead){
+            window.__deliveringMotion=true;window.__motionDeliveredAt=performance.now();
+            try {this.onmessage?.({data:{type:'result',time:data.time,width,height,inferenceMs:1,hands:[],pose:this.mode==='hand'?[]:structuredClone(window.__pose)}});}
+            finally {window.__deliveringMotion=false;}
+          }},delay);
         }
       }
       terminate(){this.dead=true;}
@@ -194,13 +205,33 @@ try {
   await fixture(body());await button('조작 준비하기').click();
   await inputPage.locator('.game-view[data-phase="practice"]').waitFor();await fixture(body());
   await inputPage.locator('iframe.source-game').evaluate(f=>{
-    const api=f.contentWindow.motionGame,original=api.command;window.__jumps=0;
-    api.command=c=>{if(c.type==='jump')window.__jumps++;original.call(api,c);if(c.type==='jump')window.__jumpStarted=api.snapshot().dino.state==='jump';};
+    const api=f.contentWindow.motionGame,original=api.command;window.__jumps=0;window.__jumpDelivery=[];
+    api.command=c=>{if(c.type==='jump'){window.__jumps++;window.__jumpReleasedDuck=!api.snapshot().dino.duckHeld;window.__jumpDelivery.push({synchronous:window.__deliveringMotion===true,ms:performance.now()-window.__motionDeliveredAt});}original.call(api,c);if(c.type==='jump')window.__jumpStarted=api.snapshot().dino.state==='jump';};
   });
-  await fixture(body(-.045),200);assert.equal(await inputPage.evaluate(()=>window.__jumps),1);assert.equal(await inputPage.evaluate(()=>window.__jumpStarted),true);
-  await fixture(body(-.045),500);assert.equal(await inputPage.evaluate(()=>window.__jumps),1);
-  await fixture(body());await fixture(body(.07));assert.equal((await snapshot()).dino.state,'duck');
-  console.log('PASS: actual dino motion calibration, short rise/held apex jumps once, and small crouch ducks');
+  await fixture(body(-.021),200);assert.equal(await inputPage.evaluate(()=>window.__jumps),1);assert.equal(await inputPage.evaluate(()=>window.__jumpStarted),true);
+  await fixture(body(-.021),500);assert.equal(await inputPage.evaluate(()=>window.__jumps),1);
+  await fixture(body());await fixture(body(-.021),200);assert.equal(await inputPage.evaluate(()=>window.__jumps),2);
+  const landCrouched=async()=>{
+    await fixture(body(.07),500);
+    await inputPage.waitForFunction(()=>document.querySelector('iframe.source-game').contentWindow.motionGame.snapshot().dino.state==='duck');
+    // Count grounded pose frames after landing, independently of animation speed.
+    await fixture(body(.07),0);
+  };
+  await landCrouched();
+  for(let expected=3;expected<=5;expected++){
+    await fixture(body(-.021),200);
+    assert.equal(await inputPage.evaluate(()=>window.__jumps),expected,'crouch-to-jump must work without a standing pause');
+    assert.equal(await inputPage.evaluate(()=>window.__jumpReleasedDuck),true,'release duck before starting the jump');
+    assert.equal(await inputPage.evaluate(()=>window.__jumpStarted),true);
+    await fixture(body(-.021),500);assert.equal(await inputPage.evaluate(()=>window.__jumps),expected);
+    await landCrouched();
+  }
+  await fixture(body());assert.equal(await inputPage.evaluate(()=>window.__jumps),5,'standing up alone must not jump');
+  const deliveries=await inputPage.evaluate(()=>window.__jumpDelivery);
+  assert.equal(deliveries.length,5);
+  assert(deliveries.every(sample=>sample.synchronous),'all camera jumps must reach physics in the worker result callback, before React rendering');
+  console.log('PASS: synchronous worker-result to game command delivery (ms): '+deliveries.map(sample=>sample.ms.toFixed(2)).join(', '));
+  console.log('PASS: actual dino motion calibration, small jumps, repeated crouch-to-jump transitions, duck release, and standing without false jumps');
   await button('로비').click();await inputPage.waitForFunction(()=>!document.fullscreenElement);
   await button('설정·도움말').click();await inputPage.locator('.view-tabs').getByRole('button',{name:'게임',exact:true}).click();
   await inputPage.getByLabel('디노 모션 조작').selectOption('seated');await inputPage.keyboard.press('Escape');

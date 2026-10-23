@@ -1,0 +1,213 @@
+{
+  "note": "Synthetic landmark replay; gesture-stage delay only. afterFirstCaptureMs excludes the wait for the first captured movement frame, model inference, and game rendering.",
+  "rows": [
+    {
+      "scenario": "small-jump-apex",
+      "frequency": 10,
+      "before": {
+        "samples": 2,
+        "afterFirstCaptureMs": 100,
+        "afterLastNeutralCaptureMs": 200
+      },
+      "after": {
+        "samples": 2,
+        "afterFirstCaptureMs": 100,
+        "afterLastNeutralCaptureMs": 200
+      }
+    },
+    {
+      "scenario": "small-jump-apex",
+      "frequency": 20,
+      "before": {
+        "samples": 3,
+        "afterFirstCaptureMs": 100,
+        "afterLastNeutralCaptureMs": 150
+      },
+      "after": {
+        "samples": 2,
+        "afterFirstCaptureMs": 50,
+        "afterLastNeutralCaptureMs": 100
+      }
+    },
+    {
+      "scenario": "small-jump-apex",
+      "frequency": 30,
+      "before": {
+        "samples": 4,
+        "afterFirstCaptureMs": 100,
+        "afterLastNeutralCaptureMs": 133.3
+      },
+      "after": {
+        "samples": 2,
+        "afterFirstCaptureMs": 33.3,
+        "afterLastNeutralCaptureMs": 66.7
+      }
+    },
+    {
+      "scenario": "small-jump-apex",
+      "frequency": 60,
+      "before": {
+        "samples": 7,
+        "afterFirstCaptureMs": 100,
+        "afterLastNeutralCaptureMs": 116.7
+      },
+      "after": {
+        "samples": 2,
+        "afterFirstCaptureMs": 16.7,
+        "afterLastNeutralCaptureMs": 33.3
+      }
+    },
+    {
+      "scenario": "gradual-early-takeoff",
+      "frequency": 10,
+      "before": {
+        "samples": 2,
+        "afterFirstCaptureMs": 100,
+        "afterLastNeutralCaptureMs": 200
+      },
+      "after": {
+        "samples": 2,
+        "afterFirstCaptureMs": 100,
+        "afterLastNeutralCaptureMs": 200
+      }
+    },
+    {
+      "scenario": "gradual-early-takeoff",
+      "frequency": 20,
+      "before": {
+        "samples": 2,
+        "afterFirstCaptureMs": 50,
+        "afterLastNeutralCaptureMs": 100
+      },
+      "after": {
+        "samples": 2,
+        "afterFirstCaptureMs": 50,
+        "afterLastNeutralCaptureMs": 100
+      }
+    },
+    {
+      "scenario": "gradual-early-takeoff",
+      "frequency": 30,
+      "before": {
+        "samples": 2,
+        "afterFirstCaptureMs": 33.3,
+        "afterLastNeutralCaptureMs": 66.7
+      },
+      "after": {
+        "samples": 2,
+        "afterFirstCaptureMs": 33.3,
+        "afterLastNeutralCaptureMs": 66.7
+      }
+    },
+    {
+      "scenario": "gradual-early-takeoff",
+      "frequency": 60,
+      "before": {
+        "samples": 2,
+        "afterFirstCaptureMs": 16.7,
+        "afterLastNeutralCaptureMs": 33.3
+      },
+      "after": {
+        "samples": 2,
+        "afterFirstCaptureMs": 16.7,
+        "afterLastNeutralCaptureMs": 33.3
+      }
+    },
+    {
+      "scenario": "seated-hand-raise",
+      "frequency": 10,
+      "before": {
+        "samples": 3,
+        "afterFirstCaptureMs": 200,
+        "afterLastNeutralCaptureMs": 300
+      },
+      "after": {
+        "samples": 2,
+        "afterFirstCaptureMs": 100,
+        "afterLastNeutralCaptureMs": 200
+      }
+    },
+    {
+      "scenario": "seated-hand-raise",
+      "frequency": 20,
+      "before": {
+        "samples": 4,
+        "afterFirstCaptureMs": 150,
+        "afterLastNeutralCaptureMs": 200
+      },
+      "after": {
+        "samples": 2,
+        "afterFirstCaptureMs": 50,
+        "afterLastNeutralCaptureMs": 100
+      }
+    },
+    {
+      "scenario": "seated-hand-raise",
+      "frequency": 30,
+      "before": {
+        "samples": 5,
+        "afterFirstCaptureMs": 133.3,
+        "afterLastNeutralCaptureMs": 166.7
+      },
+      "after": {
+        "samples": 2,
+        "afterFirstCaptureMs": 33.3,
+        "afterLastNeutralCaptureMs": 66.7
+      }
+    },
+    {
+      "scenario": "seated-hand-raise",
+      "frequency": 60,
+      "before": {
+        "samples": 9,
+        "afterFirstCaptureMs": 133.3,
+        "afterLastNeutralCaptureMs": 150
+      },
+      "after": {
+        "samples": 2,
+        "afterFirstCaptureMs": 16.7,
+        "afterLastNeutralCaptureMs": 33.3
+      }
+    },
+    {
+      "scenario": "single-large-spike",
+      "frequency": 10,
+      "before": {
+        "samples": 2,
+        "afterFirstCaptureMs": 100,
+        "afterLastNeutralCaptureMs": 200
+      },
+      "after": null
+    },
+    {
+      "scenario": "single-large-spike",
+      "frequency": 20,
+      "before": {
+        "samples": 2,
+        "afterFirstCaptureMs": 50,
+        "afterLastNeutralCaptureMs": 100
+      },
+      "after": null
+    },
+    {
+      "scenario": "single-large-spike",
+      "frequency": 30,
+      "before": {
+        "samples": 2,
+        "afterFirstCaptureMs": 33.3,
+        "afterLastNeutralCaptureMs": 66.7
+      },
+      "after": null
+    },
+    {
+      "scenario": "single-large-spike",
+      "frequency": 60,
+      "before": {
+        "samples": 2,
+        "afterFirstCaptureMs": 16.7,
+        "afterLastNeutralCaptureMs": 33.3
+      },
+      "after": null
+    }
+  ]
+}

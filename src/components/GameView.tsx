@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Pause, Play, RotateCcw, Flag, Keyboard, ScanLine, Check, PersonStanding, Maximize2, Minimize2, Volume2, VolumeX, MoveHorizontal } from 'lucide-react';
 import type { Character, Command, GameEvent, GameId, MotionFrame, Settings } from '../core/types';
 import type { CameraManager } from '../motion/camera';
@@ -17,10 +17,13 @@ export function GameView({ id,settings,frame,camera,character,connect,back,editC
   const source=useMemo(()=>id==='balance'?'':sourceDocument(id),[id]);
   const canvas=useRef<HTMLCanvasElement>(null), pose=useRef(new PoseControls()), tetris=useRef(new TetrisControls()), phaseRef=useRef(phase), lastValid=useRef(0), countdownStart=useRef(0), resume=useRef(false), keys=useRef(new Set<string>()), balanceCenter=useRef(0), actionSet=useRef(new Set<string>()), live=useRef(true);
   const settingsRef=useRef(settings); settingsRef.current=settings; phaseRef.current=phase;
+  const changePhase=(next:Phase)=>{phaseRef.current=next;setPhase(next);};
+  const motionHandler=useRef<(next:MotionFrame)=>void>(()=>{});
+  const controlPhase=useRef({phase,inputMode});
   const keyboardChosen=useRef(false);
   const chooseInput=(mode:'motion'|'keyboard')=>{keyboardChosen.current=mode==='keyboard';setInputMode(mode);};
   useEffect(()=>{if(camera.status==='ready'&&phase==='setup'&&!keyboardChosen.current)setInputMode('motion');},[camera.status,phase]);
-  const event=(e:GameEvent)=>{ if(!live.current)return; if(e.type==='score')setScore(e.score); if(e.type==='over'){recordScore(id,e.score);setScore(e.score);setPhase('over');} };
+  const event=(e:GameEvent)=>{ if(!live.current)return; if(e.type==='score')setScore(e.score); if(e.type==='over'){recordScore(id,e.score);setScore(e.score);changePhase('over');} };
   const game=useMemo(()=>{
     return id==='balance'?new BalanceGame(event):new SourceGame(id,settings,event);
   },[id]);
@@ -36,8 +39,8 @@ export function GameView({ id,settings,frame,camera,character,connect,back,editC
     if(c.type==='softDrop'&&c.value){setFeedback('소프트 드롭 인식됨');mark('softDrop');}
     if(c.type==='tilt'&&Math.abs(c.value)>.06)mark('tilt');
   };
-  const pause=(message='잠깐 쉬어가요')=>{if(!['running','practice','countdown'].includes(phaseRef.current))return;game.pause();game.release();keys.current.clear();pose.current.reset();tetris.current.reset();countdownStart.current=0;setReason(message);setPhase('paused');};
-  const startPractice=()=>{if(game.state==='paused')game.resume();else{if(game.state==='over')game.restart();game.start();}lastValid.current=performance.now();setPhase('practice');};
+  const pause=(message='잠깐 쉬어가요')=>{if(!['running','practice','countdown'].includes(phaseRef.current))return;game.pause();game.release();keys.current.clear();pose.current.reset();tetris.current.reset();countdownStart.current=0;setReason(message);changePhase('paused');};
+  const startPractice=()=>{if(game.state==='paused')game.resume();else{if(game.state==='over')game.restart();game.start();}lastValid.current=performance.now();changePhase('practice');};
   useEffect(()=>{live.current=true;gameAudio.ensure(id);return()=>{live.current=false;game.dispose();gameAudio.stop();};},[game]);
   useEffect(()=>{
     gameAudio.setEnabled(sound);
@@ -54,24 +57,34 @@ export function GameView({ id,settings,frame,camera,character,connect,back,editC
     if(!character){game.visual=null;return;}
     let active=true;const url=URL.createObjectURL(character.processed), image=new Image();image.onload=()=>{if(active)game.visual={image,flip:character.flip,footX:character.footX,footY:character.footY,size:character.size,strength:settingsRef.current.strength};};image.src=url;return()=>{active=false;URL.revokeObjectURL(url);};
   },[character,game]);
-  useEffect(()=>{
-    onPhase(phase);game.release();keys.current.clear();tetris.current.reset();pose.current.reset();lastValid.current=performance.now();countdownStart.current=0;
+  useLayoutEffect(()=>{
+    const was=controlPhase.current;
+    // Countdown already observes neutral poses. Keep that preparation at GO.
+    const prepared=was.phase==='countdown'&&phase==='running'&&was.inputMode===inputMode;
+    controlPhase.current={phase,inputMode};
+    onPhase(phase);game.release();keys.current.clear();
+    if(!prepared){tetris.current.reset();pose.current.reset();}
+    lastValid.current=performance.now();countdownStart.current=0;
     camera.setMode(inputMode==='motion'&&['calibration','practice','countdown','running'].includes(phase)?id==='tetris'?'tetris':'pose':'hand');
   },[phase,inputMode,id]);
   useEffect(()=>{if(inputMode==='motion'&&camera.status!=='ready'){game.release();tetris.current.reset();pose.current.reset();if(camera.status==='error'||camera.status==='off')pause('카메라 연결이 해제되어 멈췄어요.');}},[camera.status,inputMode]);
-  useEffect(()=>{
-    if(inputMode!=='motion')return;
-    if(!frame||camera.status!=='ready'){game.release();tetris.current.reset();pose.current.reset();return;}
+  useLayoutEffect(()=>{motionHandler.current=(frame:MotionFrame)=>{
+    const phase=phaseRef.current;
+    if(!live.current||document.hidden||inputMode!=='motion')return;
+    // Consume results before React schedules preview/UI work. Stale inference
+    // must not refresh tracking or complete an old gesture.
+    if(camera.status!=='ready'||!Number.isFinite(frame.time)||performance.now()-frame.time>350){game.release();tetris.current.reset();pose.current.reset();return;}
     if(phase==='calibration'){
       const result=id==='tetris'?tetris.current.update(frame.hands,frame.pose,frame.time,frame.width/frame.height,settings):pose.current.update(frame.pose,frame.time,frame.width/frame.height,id==='balance'?{...settings,dinoMode:'body'}:settings,true);setProgress(result.progress);setFeedback(result.valid?'편하게 선 자세를 유지해주세요':id==='tetris'?'양손과 어깨·골반이 보이게 해주세요':'어깨·골반과 필요한 손목이 보이게 해주세요');
-      if(result.valid)lastValid.current=performance.now();
+      if(result.valid)lastValid.current=frame.time;
       if(result.progress===1){setFeedback('보정 완료! 동작을 연습해보세요');startPractice();}return;
     }
     if(!['practice','countdown','running'].includes(phase))return;
     const result=id==='tetris'?tetris.current.update(frame.hands,frame.pose,frame.time,frame.width/frame.height,settings):pose.current.update(frame.pose,frame.time,frame.width/frame.height,id==='balance'?{...settings,dinoMode:'body'}:settings,game instanceof SourceGame?game.grounded:true);
-    if(result.valid)lastValid.current=performance.now();else{game.release();setFeedback(id==='tetris'?'양손과 어깨·골반을 화면 안에 넣어주세요':'어깨와 골반이 보이게 해주세요');}
+    if(result.valid)lastValid.current=frame.time;else{game.release();setFeedback(id==='tetris'?'양손과 어깨·골반을 화면 안에 넣어주세요':'어깨와 골반이 보이게 해주세요');}
     if(result.valid)for(const c of result.commands)command(c);
-  },[frame,phase,inputMode,settings]);
+  };});
+  useLayoutEffect(()=>camera.subscribeFrame(next=>motionHandler.current(next)),[camera]);
   useEffect(()=>{
     const ctx=canvas.current?.getContext('2d');
     let raf=0, previous=performance.now();
@@ -81,7 +94,7 @@ export function GameView({ id,settings,frame,camera,character,connect,back,editC
       if(camera.status==='loading'||warming)lastValid.current=now;
       if(inputMode==='motion'&&!warming&&camera.status!=='loading'&&['running','practice','countdown'].includes(p)&&now-lastValid.current>1400)pause(camera.status==='error'?'카메라 연결을 확인해주세요':'인식이 잠시 끊겼어요. 자세를 확인하고 다시 시작해주세요.');
       if(p==='countdown'){
-        if(inputMode==='keyboard'||camera.status==='ready'&&camera.hasResult&&now-lastValid.current<400){if(!countdownStart.current)countdownStart.current=now;setCount(Math.max(1,3-Math.floor((now-countdownStart.current)/1000)));if(now-countdownStart.current>=3000){if(resume.current)game.resume();else game.start();setPhase('running');setFeedback('좋아요, 시작해볼까요!');}}
+        if(inputMode==='keyboard'||camera.status==='ready'&&camera.hasResult&&now-lastValid.current<400){if(!countdownStart.current)countdownStart.current=now;setCount(Math.max(1,3-Math.floor((now-countdownStart.current)/1000)));if(now-countdownStart.current>=3000){if(resume.current)game.resume();else game.start();changePhase('running');setFeedback('좋아요, 시작해볼까요!');}}
         else countdownStart.current=0;
       }
       if(p==='running'||p==='practice'){
@@ -109,9 +122,9 @@ export function GameView({ id,settings,frame,camera,character,connect,back,editC
     const release=()=>{keys.current.clear();game.release();};window.addEventListener('keydown',down);window.addEventListener('keyup',up);window.addEventListener('blur',blur);window.addEventListener('pointerup',release);window.addEventListener('motion-dialog-open',modalPause);document.addEventListener('visibilitychange',hidden);
     return()=>{window.removeEventListener('keydown',down);window.removeEventListener('keyup',up);window.removeEventListener('blur',blur);window.removeEventListener('pointerup',release);window.removeEventListener('motion-dialog-open',modalPause);document.removeEventListener('visibilitychange',hidden);release();};
   },[game,inputMode]);
-  const prepare=()=>{if(!loaded)return;if(sound)enableSound();actionSet.current.clear();setAchievements([]);balanceCenter.current=0;if(inputMode==='motion'&&camera.status!=='ready'){connect();return;}if(inputMode==='motion'){if(id==='tetris')tetris.current.beginCalibration();else pose.current.beginCalibration();setProgress(0);setPhase('calibration');}else{startPractice();setFeedback('화면의 조작을 직접 해보세요');}};
-  const startCountdown=(isResume=false)=>{game.release();tetris.current.reset();pose.current.reset();resume.current=isResume;if(!isResume){game.restart();setScore(0);}lastValid.current=performance.now();setCount(3);setPhase('countdown');};
-  const prepareMotion=()=>{chooseInput('motion');if(id==='tetris')tetris.current.beginCalibration();else pose.current.beginCalibration();setProgress(0);setPhase('calibration');};
+  const prepare=()=>{if(!loaded)return;if(sound)enableSound();actionSet.current.clear();setAchievements([]);balanceCenter.current=0;if(inputMode==='motion'&&camera.status!=='ready'){connect();return;}if(inputMode==='motion'){if(id==='tetris')tetris.current.beginCalibration();else pose.current.beginCalibration();setProgress(0);changePhase('calibration');}else{startPractice();setFeedback('화면의 조작을 직접 해보세요');}};
+  const startCountdown=(isResume=false)=>{game.release();tetris.current.reset();pose.current.reset();resume.current=isResume;if(!isResume){game.restart();setScore(0);}lastValid.current=performance.now();setCount(3);changePhase('countdown');};
+  const prepareMotion=()=>{chooseInput('motion');if(id==='tetris')tetris.current.beginCalibration();else pose.current.beginCalibration();setProgress(0);changePhase('calibration');};
   const info=gameInfo[id], control=id==='dino'&&inputMode==='motion'&&settings.dinoMode==='seated'?'손목을 어깨 위로 올려 점프 · 손을 내리면 다음 점프 준비':info.control;
   const required=id==='dino'?(inputMode==='motion'&&settings.dinoMode==='seated'?[['jump','손 올려 점프']]:[['jump','점프'],['duck','숙이기']]):id==='tetris'?[['left','왼쪽'],['right','오른쪽'],['softDrop','소프트 드롭'],['rotate','회전']]:[['tilt','판 기울이기'],['center','중앙 유지']];
   useEffect(()=>{if(required.every(([key])=>achievements.includes(key))){onPracticeComplete?.();if(onPracticeComplete&&!immersive&&phaseRef.current==='practice')pause('연습을 마쳤어요. 아래의 연습 마치기를 선택해주세요.');}},[achievements]);

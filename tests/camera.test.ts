@@ -40,6 +40,44 @@ describe('camera lifecycle and retries',()=>{
     for(let i=1;i<=10;i++){video.currentTime=i/30;m.loop();}
     expect(capture).toHaveBeenCalledOnce();expect(m.busy).toBe(true);m.stop();
   });
+  it('captures the newest frame immediately when inference completes between display ticks',async()=>{
+    let now=0;vi.stubGlobal('performance',{now:()=>now});
+    const bitmap={close:vi.fn()},capture=vi.fn().mockResolvedValue(bitmap);vi.stubGlobal('createImageBitmap',capture);
+    Object.assign(video,{readyState:2,currentTime:0,videoWidth:640,videoHeight:480});
+    const m=new CameraManager(defaults);permission.mockResolvedValue(stream().value);await m.start();workers[0].send({type:'ready'});await Promise.resolve();
+    now=35;video.currentTime=.033;m.captureFrame();expect(capture).toHaveBeenCalledOnce();
+    now=50;video.currentTime=.05;workers[0].send({type:'result'});await Promise.resolve();
+    expect(capture).toHaveBeenCalledTimes(2);
+    expect(workers[0].postMessage).toHaveBeenLastCalledWith(expect.objectContaining({type:'frame',time:50}),[bitmap]);
+    expect(requestAnimationFrame).toHaveBeenCalledOnce();
+    expect(m.lastVideoTime).toBe(.05);expect(m.busy).toBe(true);m.stop();
+  });
+  it('still honors the frequency limit and rejects duplicate images after immediate completion',async()=>{
+    let now=0;vi.stubGlobal('performance',{now:()=>now});
+    const capture=vi.fn().mockResolvedValue({close:vi.fn()});vi.stubGlobal('createImageBitmap',capture);
+    Object.assign(video,{readyState:2,currentTime:0,videoWidth:640,videoHeight:480});
+    const m=new CameraManager(defaults);permission.mockResolvedValue(stream().value);await m.start();workers[0].send({type:'ready'});await Promise.resolve();
+    now=10;video.currentTime=.01;workers[0].send({type:'result'});expect(capture).toHaveBeenCalledOnce();
+    now=34;video.currentTime=.033;m.captureFrame();await Promise.resolve();workers[0].send({type:'result'});
+    now=100;m.captureFrame();expect(capture).toHaveBeenCalledTimes(2);m.stop();
+  });
+  it('delivers motion directly before preview updates and supports unsubscribe',async()=>{
+    const m=new CameraManager(defaults),order:string[]=[];
+    const unsubscribe=m.subscribeFrame(()=>order.push('motion'));m.onFrame=()=>order.push('preview');
+    permission.mockResolvedValue(stream().value);await m.start();workers[0].send({type:'ready'});workers[0].send({type:'result'});
+    expect(order).toEqual(['motion','preview']);unsubscribe();workers[0].send({type:'result'});
+    expect(order).toEqual(['motion','preview','preview']);m.stop();
+  });
+  it.each(['stop','switch'] as const)('does not publish or capture a stale result when a direct listener performs %s',async action=>{
+    const capture=vi.fn().mockResolvedValue({close:vi.fn()});vi.stubGlobal('createImageBitmap',capture);
+    Object.assign(video,{currentTime:0,videoWidth:640,videoHeight:480});
+    const m=new CameraManager(defaults),preview=vi.fn(),laterListener=vi.fn();m.onFrame=preview;
+    m.subscribeFrame(()=>action==='stop'?m.stop():m.setMode('pose'));m.subscribeFrame(laterListener);
+    permission.mockResolvedValue(stream().value);await m.start();workers[0].send({type:'ready'});
+    video.readyState=2;workers[0].send({type:'result'});m.captureFrame();
+    expect(preview).not.toHaveBeenCalled();expect(laterListener).not.toHaveBeenCalled();expect(capture).not.toHaveBeenCalled();
+    expect(m.status).toBe(action==='stop'?'off':'loading');m.stop();
+  });
   it.each([20,30])('avoids frame-rate rounding losses at %i Hz with a 30 Hz camera',async frequency=>{
     let now=0;vi.stubGlobal('performance',{now:()=>now});const capture=vi.fn().mockResolvedValue({close:vi.fn()});vi.stubGlobal('createImageBitmap',capture);
     Object.assign(video,{readyState:2,currentTime:0,videoWidth:640,videoHeight:480});
@@ -80,5 +118,13 @@ describe('camera lifecycle and retries',()=>{
     expect(manager.worker).toBe(workers[1]);
     expect(cameraStream.track.stop).not.toHaveBeenCalled();
     manager.stop();
+  });
+  it('closes a bitmap that resolves after its camera worker was replaced',async()=>{
+    let resolveBitmap!:(bitmap:unknown)=>void;
+    vi.stubGlobal('createImageBitmap',vi.fn(()=>new Promise(resolve=>{resolveBitmap=resolve;})));
+    Object.assign(video,{readyState:2,currentTime:0});
+    const m=new CameraManager(defaults);permission.mockResolvedValue(stream().value);await m.start();workers[0].send({type:'ready'});
+    const previous=workers[0],bitmap={close:vi.fn()};m.setMode('pose');resolveBitmap(bitmap);await Promise.resolve();
+    expect(bitmap.close).toHaveBeenCalledOnce();expect(previous.postMessage).toHaveBeenCalledOnce();expect(workers[1].postMessage).toHaveBeenCalledOnce();m.stop();
   });
 });

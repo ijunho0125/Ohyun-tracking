@@ -13,9 +13,13 @@ class GameAudio {
     this.stop(); this.id = id; this.enabled = true;
     try {
       this.context = new AudioContext();
-      this.output = this.context.createGain(); this.output.gain.value = .5;
+      this.output = this.context.createGain(); this.output.gain.value = 1;
+      // Keep the louder music clear when drums and game effects overlap.
+      const compressor = this.context.createDynamicsCompressor();
+      compressor.threshold.value = -9; compressor.knee.value = 6;
+      compressor.ratio.value = 12; compressor.attack.value = .003; compressor.release.value = .15;
       this.analyser = this.context.createAnalyser(); this.analyser.fftSize = 256;
-      this.output.connect(this.analyser); this.analyser.connect(this.context.destination);
+      this.output.connect(compressor); compressor.connect(this.analyser); this.analyser.connect(this.context.destination);
       void this.resume();
       [523.25,659.25,783.99].forEach((frequency,i)=>this.note(frequency,i*.09,.22));
       if(id==='balance') {
@@ -32,7 +36,7 @@ class GameAudio {
   pause() { if(this.context?.state==='running')void this.context.suspend().catch(()=>{}); }
   setEnabled(value: boolean) {
     this.enabled=value;
-    if(this.output&&this.context)this.output.gain.setValueAtTime(value ? .5 : 0,this.context.currentTime);
+    if(this.output&&this.context)this.output.gain.setValueAtTime(value ? 1 : 0,this.context.currentTime);
   }
   note(frequency: number, delay=0, duration=.12) {
     const context=this.context,output=this.output;

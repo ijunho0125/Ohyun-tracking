@@ -93,6 +93,19 @@ describe.each(['dino', 'tetris'] as const)('%s source adapter', id => {
     expect(events.filter(event => event.type === 'over')).toEqual([{ type: 'over', score: 42 }]);
   });
 
+  it('refreshes grounded state at jump and restart without waiting for a render tick', () => {
+    const {game,api,snapshot}=sourceFixture(id);
+    game.start();
+    api.command.mockImplementation(()=>{snapshot.grounded=false;});
+    game.command({type:'jump'});
+    expect(game.grounded).toBe(false);
+    api.reset.mockImplementation(()=>{snapshot.grounded=true;});
+    game.restart();
+    expect(game.grounded).toBe(true);
+    game.start();
+    expect(game.grounded).toBe(true);
+  });
+
   it('updates practice styling only on changes and when attaching a new document', () => {
     const { game, api, frame } = sourceFixture(id);
     game.practicing = true;
