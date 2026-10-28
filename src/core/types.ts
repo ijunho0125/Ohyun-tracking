@@ -8,7 +8,7 @@ export type Landmark = { x: number; y: number; z?: number; visibility?: number; 
 export type Hand = { side: 'Left' | 'Right'; points: Landmark[]; confidence: number };
 export type MotionFrame = { hands: Hand[]; pose: Landmark[]; time: number; width: number; height: number; inferenceMs: number };
 export type Settings = { hand: 'Left' | 'Right'; dinoMode: 'body' | 'seated'; fistHoldMs: number; fistFrames: number; openFrames: number; dwellMs: number; smoothing: number; frequency: number; resolution: number; dinoSpeed: number; obstacleGap: number; deviceId: string; strength: number };
-export const defaults: Settings = { hand: 'Right', dinoMode: 'body', fistHoldMs: 180, fistFrames: 3, openFrames: 3, dwellMs: 240, smoothing: .35, frequency: 30, resolution: 640, dinoSpeed: 260, obstacleGap: 3.2, deviceId: '', strength: 1 };
+export const defaults: Settings = { hand: 'Right', dinoMode: 'body', fistHoldMs: 180, fistFrames: 3, openFrames: 3, dwellMs: 240, smoothing: .35, frequency: 30, resolution: 640, dinoSpeed: 260, obstacleGap: 1.3, deviceId: '', strength: 1 };
 export interface GameAdapter {
   id: GameId; state: GameState; score: number;
   prepare(): void; start(): void; pause(): void; resume(): void; restart(): void; finish(): void; dispose(): void;

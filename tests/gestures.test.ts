@@ -6,6 +6,47 @@ function body(shift=0,wrist=.8):Landmark[]{const p=Array.from({length:33},()=>({
 function scaledBody(size:number,rise=0){const points=body(-size*rise);for(const i of [23,24])points[i].y=.4+size-size*rise;return points;}
 function calibrated(points=body()){const p=new PoseControls();p.beginCalibration();for(let i=0;i<30;i++)p.update(points,i*50,4/3,s,true);return p;}
 describe('pose calibration and commands',()=>{
+  it('keeps crouching for as long as the player remains crouched and releases when they stand',()=>{
+    const p=calibrated();
+    for(let time=1600;time<=6600;time+=50){
+      expect(p.update(body(.1),time,4/3,s,true).commands).toContainEqual({type:'duck',value:true});
+    }
+    expect(p.update(body(),6650,4/3,s,true).commands).toContainEqual({type:'duck',value:false});
+  });
+  it('replaces the previous baseline when body tracking is calibrated again',()=>{
+    const p=calibrated();
+    p.update(body(.1),1800,4/3,s,true);
+    expect(p.duck).toBe(true);
+    p.beginCalibration();
+    expect(p.baseline).toBe(null);
+    expect(p.duck).toBe(false);
+    for(let i=0;i<30;i++)expect(p.update(body(.1),1900+i*50,4/3,s,true).commands).toEqual([]);
+    expect(p.baseline?.shoulderY).toBeCloseTo(.5);
+    expect(p.update(body(.1),3500,4/3,s,true).commands).toContainEqual({type:'duck',value:false});
+  });
+  it('does not count duplicate or reordered captures toward calibration',()=>{
+    const p=new PoseControls();p.beginCalibration();
+    p.update(body(),100,4/3,s,true);
+    for(let i=0;i<30;i++)p.update(body(),i%2?100:50,4/3,s,true);
+    expect(p.samples).toHaveLength(1);
+    expect(p.calibrating).toBe(true);
+  });
+  it('discards partial calibration after an inference gap or an explicit tracking reset',()=>{
+    for(const reset of [false,true]){
+      const p=new PoseControls();p.beginCalibration();
+      for(let i=0;i<20;i++)p.update(body(),i*50,4/3,s,true);
+      if(reset)p.reset();
+      p.update(body(),reset?1000:1500,4/3,s,true);
+      expect(p.samples).toHaveLength(1);
+      expect(p.calibrating).toBe(true);
+    }
+  });
+  it('restarts calibration if the hips move while the shoulders remain still',()=>{
+    const p=new PoseControls();p.beginCalibration();
+    for(let i=0;i<20;i++)p.update(body(),i*50,4/3,s,true);
+    const points=body();points[23].y+=.06;points[24].y+=.06;
+    expect(p.update(points,1000,4/3,s,true).progress).toBeCloseTo(1/30);
+  });
   it.each([10,20,30,60])('confirms a brief small jump in two captured samples at %i Hz',frequency=>{
     const p=calibrated(),step=1000/frequency;let now=1600;
     for(let i=0;i<4;i++)p.update(body(),now+=step,4/3,defaults,true);
@@ -143,6 +184,39 @@ describe('pose calibration and commands',()=>{
   it('needs 30 stable visible samples and clears progress on lost joints',()=>{const p=new PoseControls();p.beginCalibration();for(let i=0;i<20;i++)p.update(body(),i*50,4/3,s,true);p.update([],1050,4/3,s,true);expect(p.samples).toHaveLength(0);for(let i=0;i<30;i++)p.update(body(),1100+i*50,4/3,s,true);expect(p.baseline?.size).toBeCloseTo(.3);expect(p.calibrating).toBe(false);});
   it('requires consecutive upward frames, neutral return and a grounded character',()=>{const p=calibrated();for(let i=0;i<3;i++)p.update(body(),1600+i*50,4/3,s,true);expect(p.update(body(-.05),1800,4/3,s,true).commands.some(c=>c.type==='jump')).toBe(false);expect(p.update(body(-.065),1850,4/3,s,true).commands).toContainEqual({type:'jump'});expect(p.update(body(-.08),1900,4/3,s,true).commands.some(c=>c.type==='jump')).toBe(false);for(let i=0;i<3;i++)p.update(body(),2000+i*50,4/3,s,false);p.update(body(-.05),2200,4/3,s,false);expect(p.update(body(-.065),2250,4/3,s,false).commands.some(c=>c.type==='jump')).toBe(false);});
   it('releases duck and tilt immediately on tracking loss',()=>{const p=calibrated();expect(p.update(body(.1),1800,4/3,s,true).commands).toContainEqual({type:'duck',value:true});expect(p.update([],1850,4/3,s,true).commands).toEqual([{type:'duck',value:false},{type:'tilt',value:0}]);expect(p.jumpArmed).toBe(false);});
+  it.each([10,20,30])('tracks mirrored left and right torso lean and returns to neutral at %i Hz',frequency=>{
+    const p=calibrated(),step=1000/frequency;let now=1600;
+    const tilted=(shift:number)=>{const points=body();points[11].x+=shift;points[12].x+=shift;return points;};
+    const tilt=(shift:number)=>{
+      const commands=p.update(tilted(shift),now+=step,4/3,defaults,true).commands;
+      const result=commands.find(c=>c.type==='tilt');
+      if(!result || result.type!=='tilt')throw new Error('missing tilt command');
+      return result.value;
+    };
+    for(let i=0;i<6;i++)tilt(0);
+    let left=0;for(let i=0;i<8;i++)left=tilt(.06);
+    expect(left).toBeLessThan(-.1);
+    let right=0;for(let i=0;i<8;i++)right=tilt(-.06);
+    expect(right).toBeGreaterThan(.1);
+    let center=0;for(let i=0;i<10;i++)center=tilt(0);
+    expect(Math.abs(center)).toBeLessThan(.025);
+  });
+  it('keeps small torso jitter neutral and scales tilt with a deliberate lean',()=>{
+    const p=calibrated();let now=1600;
+    const lean=(shift:number)=>{
+      const points=body();points[11].x+=shift;points[12].x+=shift;
+      const command=p.update(points,now+=50,4/3,s,true).commands.find(c=>c.type==='tilt');
+      if(!command || command.type!=='tilt')throw new Error('missing tilt command');
+      return command.value;
+    };
+    expect(lean(.005)).toBe(0);
+    expect(lean(-.005)).toBe(0);
+    const slight=lean(.03),strong=lean(.06);
+    expect(slight).toBeLessThan(0);
+    expect(strong).toBeLessThan(slight);
+    expect(Math.abs(strong)).toBeLessThanOrEqual(.38);
+    expect(p.update([],now+50,4/3,s,true).commands).toContainEqual({type:'tilt',value:0});
+  });
   it('uses a separate hand-raise rule in seated mode',()=>{const p=calibrated(),seated={...s,dinoMode:'seated' as const};for(let i=0;i<3;i++)p.update(body(),1600+i*50,4/3,seated,true);p.update(body(0,.2),1800,4/3,seated,true);expect(p.update(body(0,.2),1850,4/3,seated,true).commands).toContainEqual({type:'jump'});expect(p.duck).toBe(false);});
   it('treats both wrists lost as invalid only for seated dino input',()=>{const p=calibrated(),points=body();points[15].visibility=0;points[16].visibility=0;expect(p.update(points,1800,4/3,{...s,dinoMode:'seated'},true).valid).toBe(false);expect(p.update(points,1850,4/3,s,true).valid).toBe(true);});
   it.each([10,20,30])('recognizes a short rise followed by a stationary apex at %i Hz with default smoothing',frequency=>{

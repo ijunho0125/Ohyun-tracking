@@ -38,14 +38,14 @@ async function save(name){
   const response=pad.waitForResponse(response=>response.url().endsWith('/api/characters') && response.request().method()==='POST');
   await button(pad,'이미지 저장').click();
   const result=await response;assert.equal(result.status(),201);const info=await result.json();savedIds.push(info.id);
-  await pad.getByText('사이트에 저장하고 연결된 디노 런에 적용했어요.',{exact:true}).waitFor();
+  await pad.getByText('사이트에 저장하고 연결된 병아리 질주 게임에 적용했어요.',{exact:true}).waitFor();
   await current(name).waitFor({timeout:6000});
   assert.equal((await state()).state,'idle','saving must not start the game');
   return info;
 }
 try{
   await game.goto(base);await game.locator('.game-card.dino').click();await button(game,'조작 준비하기').waitFor();
-  await pad.goto(base+'/draw');await pad.getByRole('heading',{name:'내 그림으로 디노 런'}).waitFor();
+  await pad.goto(base+'/draw');await pad.getByRole('heading',{name:'내 그림으로 병아리 질주 게임'}).waitFor();
   await button(pad,'이미지 저장').click();await pad.getByText('빈 종이예요. 캐릭터를 먼저 그려주세요.',{exact:true}).waitFor();
   pass('tablet drawing page opens directly; blank drawing cannot replace the game character');
   await touchDrawing();

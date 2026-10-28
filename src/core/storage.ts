@@ -22,7 +22,7 @@ export function loadSettings(): Settings {
     if ((saved.version ?? 0) < 3 && result.frequency === 20) result.frequency = defaults.frequency;
     result.dinoMode = result.dinoMode === 'seated' ? 'seated' : 'body';
     result.dinoSpeed = Math.max(220, Math.min(380, result.dinoSpeed));
-    result.obstacleGap = Math.max(1.3, Math.min(5, result.obstacleGap));
+    result.obstacleGap = Math.max(.6, Math.min(5, result.obstacleGap));
     return result;
   } catch { return { ...defaults }; }
 }

@@ -19,9 +19,13 @@ describe('motion-friendly settings upgrades',()=>{
     const value=JSON.parse(vi.mocked(localStorage.setItem).mock.calls[0][1]);saved(value);
     expect(loadSettings()).toMatchObject({dinoSpeed:300,obstacleGap:1.75});
   });
+  it('preserves tight and previously saved obstacle gaps',()=>{
+    saved({version:3,obstacleGap:.6});expect(loadSettings().obstacleGap).toBe(.6);
+    saved({version:3,obstacleGap:3.2});expect(loadSettings().obstacleGap).toBe(3.2);
+  });
   it('bounds imported values and ignores non-finite numbers',()=>{
     saved({version:2,dinoSpeed:900,obstacleGap:-1,dinoMode:'unknown'});
-    expect(loadSettings()).toMatchObject({dinoSpeed:380,obstacleGap:1.3,dinoMode:'body'});
+    expect(loadSettings()).toMatchObject({dinoSpeed:380,obstacleGap:.6,dinoMode:'body'});
     vi.stubGlobal('localStorage',{getItem:()=>'{"dinoSpeed":1e999,"obstacleGap":1e999}'});
     expect(loadSettings()).toMatchObject({dinoSpeed:defaults.dinoSpeed,obstacleGap:defaults.obstacleGap});
   });

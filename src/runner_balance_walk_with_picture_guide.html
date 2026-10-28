@@ -1,0 +1,3959 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>사람 균형 달리기 (Runner Balance Walk)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Jua&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+        }
+
+        body {
+            font-family: 'Jua', 'Nunito', sans-serif;
+            background: radial-gradient(circle at center, #1e1b4b 0%, #0f172a 100%);
+            overflow: hidden;
+            padding:
+                max(6px, env(safe-area-inset-top))
+                max(6px, env(safe-area-inset-right))
+                max(6px, env(safe-area-inset-bottom))
+                max(6px, env(safe-area-inset-left));
+        }
+
+        #game-card {
+            width: min(100%, 1180px);
+            height: calc(100dvh - 12px);
+            max-height: 920px;
+            min-height: 480px;
+            margin: 0 auto;
+            border-radius: clamp(16px, 2vw, 28px);
+        }
+
+        .btn-press {
+            transition: transform 0.05s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .btn-press:active, .btn-pressed {
+            transform: scale(0.95) translateY(2px);
+            box-shadow: 0 2px 0 rgba(0,0,0,0.2) !important;
+        }
+
+        @keyframes danger-pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.95); }
+        }
+
+        .warning-active {
+            animation: danger-pulse 0.35s infinite;
+        }
+
+        @keyframes drift-glow {
+            0%, 100% { box-shadow: 0 0 10px rgba(56, 189, 248, 0.3); }
+            50% { box-shadow: 0 0 22px rgba(56, 189, 248, 0.85); }
+        }
+
+        .gauge-container {
+            animation: drift-glow 2s infinite;
+        }
+
+        /* Fluid HUD sizing */
+        #top-hud {
+            top: clamp(6px, 1.5vh, 14px);
+            left: clamp(6px, 1vw, 14px);
+            right: clamp(6px, 1vw, 14px);
+            gap: clamp(6px, 1vw, 12px);
+        }
+
+        .hud-box {
+            min-width: 0 !important;
+            padding: clamp(6px, 1vh, 10px) clamp(8px, 1.2vw, 14px) !important;
+            border-radius: clamp(12px, 1.5vw, 18px) !important;
+        }
+
+        .hud-label {
+            font-size: clamp(9px, 1.15vw, 12px) !important;
+        }
+
+        .hud-value {
+            font-size: clamp(18px, 2.7vw, 30px) !important;
+            line-height: 1;
+        }
+
+        #balance-panel {
+            width: min(42vw, 360px);
+            min-width: 240px;
+            padding: clamp(7px, 1vw, 12px) !important;
+        }
+
+        #control-bar {
+            left: clamp(8px, 1.5vw, 18px);
+            right: clamp(8px, 1.5vw, 18px);
+            bottom: clamp(8px, 1.8vh, 18px);
+            gap: clamp(8px, 1vw, 14px);
+        }
+
+        #control-bar button {
+            min-height: clamp(48px, 8vh, 76px);
+            padding-top: clamp(10px, 1.6vh, 18px) !important;
+            padding-bottom: clamp(10px, 1.6vh, 18px) !important;
+            font-size: clamp(14px, 2vw, 24px) !important;
+        }
+
+        #mute-btn {
+            padding: clamp(8px, 1vw, 12px) !important;
+            font-size: clamp(18px, 2.5vw, 28px) !important;
+        }
+
+        /* Medium / narrow screens */
+        @media (max-width: 760px) {
+            body {
+                padding: 4px;
+            }
+
+            #game-card {
+                height: calc(100dvh - 8px);
+                min-height: 420px;
+                border-width: 2px !important;
+                border-radius: 16px;
+            }
+
+            #top-hud {
+                align-items: stretch !important;
+                gap: 5px;
+            }
+
+            #distance-box,
+            #best-box {
+                width: 86px;
+                flex: 0 0 86px;
+            }
+
+            #balance-panel {
+                min-width: 0;
+                width: auto;
+                flex: 1 1 auto;
+                padding: 7px !important;
+            }
+
+            #balance-panel .balance-labels {
+                font-size: 8px !important;
+            }
+
+            #balance-panel .status-row {
+                margin-top: 4px !important;
+            }
+
+            #drift-force-badge,
+            #accel-warning {
+                font-size: 8px !important;
+                padding-left: 5px !important;
+                padding-right: 5px !important;
+            }
+
+            #mute-btn {
+                border-radius: 12px !important;
+            }
+
+            #control-bar {
+                bottom: 8px;
+                left: 8px;
+                right: 8px;
+                gap: 8px;
+            }
+
+            #control-bar button {
+                min-height: 50px;
+                border-radius: 14px !important;
+            }
+
+            #control-bar button span {
+                font-size: 13px !important;
+            }
+
+            #control-bar svg {
+                width: 20px !important;
+                height: 20px !important;
+            }
+        }
+
+        /* Small phones: simplify labels so the canvas remains visible */
+        @media (max-width: 520px) {
+            #top-hud {
+                display: grid !important;
+                grid-template-columns: 72px 1fr 72px 42px;
+                align-items: start !important;
+            }
+
+            #distance-box,
+            #best-box {
+                width: auto;
+                min-width: 0 !important;
+                padding: 6px 4px !important;
+            }
+
+            #best-wrapper {
+                display: contents !important;
+            }
+
+            #balance-panel {
+                width: auto;
+                min-width: 0;
+            }
+
+            #distance-box .hud-label,
+            #best-box .hud-label {
+                font-size: 8px !important;
+            }
+
+            #distance-box .hud-value,
+            #best-box .hud-value {
+                font-size: 17px !important;
+            }
+
+            #distance-box .unit,
+            #best-box .unit {
+                font-size: 10px !important;
+            }
+
+            #balance-panel .balance-labels span:first-child,
+            #balance-panel .balance-labels span:last-child {
+                font-size: 0 !important;
+            }
+
+            #balance-panel .balance-labels span:first-child::after {
+                content: "◄ 뒤";
+                font-size: 8px;
+            }
+
+            #balance-panel .balance-labels span:last-child::after {
+                content: "앞 ►";
+                font-size: 8px;
+            }
+
+            #drift-force-badge {
+                display: none;
+            }
+
+            #balance-panel .status-row {
+                justify-content: center !important;
+            }
+
+            #control-bar button span {
+                font-size: 0 !important;
+            }
+
+            #btn-left span::after {
+                content: "뒤로";
+                font-size: 14px;
+            }
+
+            #btn-right span::after {
+                content: "앞으로";
+                font-size: 14px;
+            }
+        }
+
+        /* Short-height screens, laptops with browser bars, landscape phones */
+        @media (max-height: 650px) {
+            #game-card {
+                min-height: 0;
+            }
+
+            #top-hud {
+                top: 5px;
+            }
+
+            .hud-box {
+                padding-top: 5px !important;
+                padding-bottom: 5px !important;
+            }
+
+            .hud-label {
+                font-size: 8px !important;
+            }
+
+            .hud-value {
+                font-size: 18px !important;
+            }
+
+            #balance-panel {
+                padding: 5px 7px !important;
+            }
+
+            #control-bar {
+                bottom: 6px;
+            }
+
+            #control-bar button {
+                min-height: 44px;
+                padding-top: 7px !important;
+                padding-bottom: 7px !important;
+            }
+
+            #start-modal > div,
+            #game-over-modal > div {
+                transform: scale(0.9);
+                transform-origin: center;
+            }
+        }
+
+        /* Power-up status HUD */
+        #powerup-hud {
+            position: absolute;
+            top: clamp(82px, 12vh, 112px);
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 20;
+            display: flex;
+            gap: 8px;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        .powerup-pill {
+            padding: 6px 11px;
+            border-radius: 999px;
+            border: 2px solid rgba(255,255,255,0.75);
+            box-shadow: 0 5px 16px rgba(15,23,42,0.28);
+            backdrop-filter: blur(8px);
+            font-size: clamp(10px, 1.4vw, 13px);
+            font-weight: 900;
+        }
+
+        #speed-buff {
+            background: rgba(8, 145, 178, 0.90);
+            color: white;
+        }
+
+        #stability-buff {
+            background: rgba(5, 150, 105, 0.90);
+            color: white;
+        }
+
+        @media (max-width: 520px) {
+            #powerup-hud {
+                top: 78px;
+                gap: 5px;
+            }
+
+            .powerup-pill {
+                padding: 5px 8px;
+                font-size: 10px;
+            }
+        }
+
+        @media (max-height: 650px) {
+            #powerup-hud {
+                top: 68px;
+                transform: translateX(-50%) scale(0.88);
+                transform-origin: top center;
+            }
+        }
+
+
+        /* Start screen difficulty layout */
+        .difficulty-card {
+            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+        }
+
+        .difficulty-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .difficulty-card.selected {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+        }
+
+        .difficulty-card-easy.selected {
+            border-color: #10b981 !important;
+            background: #ecfdf5 !important;
+        }
+
+        .difficulty-card-hard.selected {
+            border-color: #ef4444 !important;
+            background: #fef2f2 !important;
+        }
+
+        @media (max-width: 900px) {
+            #start-modal-content {
+                max-width: 820px !important;
+            }
+        }
+
+        @media (max-width: 520px) {
+            #start-modal-content {
+                padding: 16px !important;
+                border-radius: 22px !important;
+            }
+
+            .difficulty-card {
+                padding: 14px !important;
+            }
+        }
+
+
+        #difficulty-hard-wrap {
+            transition: opacity 0.22s ease, transform 0.22s ease, max-width 0.22s ease;
+        }
+
+        #difficulty-hard-wrap.difficulty-hidden {
+            opacity: 0;
+            transform: translateX(20px) scale(0.96);
+            pointer-events: none;
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+        }
+
+        #difficulty-hard-wrap.difficulty-visible {
+            opacity: 1;
+            transform: translateX(0) scale(1);
+            position: relative;
+            width: auto;
+            height: auto;
+            overflow: visible;
+        }
+
+        #difficulty-reveal-btn {
+            transition: transform 0.12s ease, background-color 0.15s ease;
+        }
+
+        #difficulty-reveal-btn:active {
+            transform: scale(0.96);
+        }
+
+
+        /* =========================================================
+           Responsive start / difficulty UI
+           ========================================================= */
+        #start-modal {
+            padding:
+                max(8px, env(safe-area-inset-top))
+                max(8px, env(safe-area-inset-right))
+                max(8px, env(safe-area-inset-bottom))
+                max(8px, env(safe-area-inset-left)) !important;
+        }
+
+        #start-modal-content {
+            width: min(94vw, 920px) !important;
+            max-width: 920px !important;
+            max-height: calc(100dvh - 20px);
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: clamp(16px, 2.2vw, 28px) !important;
+            border-radius: clamp(18px, 2vw, 28px) !important;
+            scrollbar-width: thin;
+        }
+
+        #start-modal-content .start-icon {
+            font-size: clamp(38px, 6vh, 62px) !important;
+            line-height: 1;
+            margin-bottom: clamp(4px, 1vh, 10px) !important;
+        }
+
+        #start-modal-content .start-title {
+            font-size: clamp(24px, 4vw, 40px) !important;
+            line-height: 1.08;
+            margin-bottom: clamp(6px, 1vh, 12px) !important;
+        }
+
+        #start-modal-content .start-description {
+            font-size: clamp(12px, 1.6vw, 16px) !important;
+            line-height: 1.45;
+            margin-bottom: clamp(12px, 2vh, 22px) !important;
+        }
+
+        #difficulty-layout {
+            width: min(100%, 760px);
+            margin-left: auto;
+            margin-right: auto;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: clamp(10px, 2vw, 20px) !important;
+            margin-bottom: clamp(12px, 2vh, 20px) !important;
+        }
+
+        .difficulty-card {
+            min-width: 0;
+            min-height: 0;
+            padding: clamp(14px, 2.2vw, 24px) !important;
+            border-radius: clamp(16px, 2vw, 24px) !important;
+        }
+
+        .difficulty-card .difficulty-emoji {
+            font-size: clamp(34px, 6vw, 56px) !important;
+            line-height: 1;
+            margin-bottom: clamp(5px, 1vh, 10px) !important;
+        }
+
+        .difficulty-card .difficulty-en {
+            font-size: clamp(9px, 1.2vw, 12px) !important;
+        }
+
+        .difficulty-card .difficulty-name {
+            font-size: clamp(20px, 3vw, 30px) !important;
+            line-height: 1.1;
+        }
+
+        .difficulty-card .difficulty-desc {
+            font-size: clamp(11px, 1.5vw, 15px) !important;
+            margin-top: clamp(6px, 1vh, 12px) !important;
+        }
+
+        .difficulty-state {
+            margin-top: clamp(8px, 1.4vh, 14px) !important;
+            padding: clamp(5px, 0.8vh, 8px) clamp(10px, 1.5vw, 16px) !important;
+            font-size: clamp(10px, 1.3vw, 13px) !important;
+        }
+
+        #difficulty-footer {
+            width: min(100%, 430px);
+            margin-left: auto;
+            margin-right: auto;
+            margin-bottom: clamp(8px, 1.5vh, 14px) !important;
+        }
+
+        #selected-box {
+            padding: clamp(8px, 1.2vh, 12px) !important;
+            margin-bottom: clamp(8px, 1.5vh, 14px) !important;
+        }
+
+        #selected-difficulty-label {
+            font-size: clamp(18px, 2.8vw, 25px) !important;
+        }
+
+        #start-btn {
+            padding-top: clamp(10px, 1.7vh, 16px) !important;
+            padding-bottom: clamp(10px, 1.7vh, 16px) !important;
+            font-size: clamp(16px, 2.3vw, 21px) !important;
+            border-radius: clamp(14px, 1.8vw, 20px) !important;
+        }
+
+        #start-footnote {
+            font-size: clamp(10px, 1.3vw, 13px) !important;
+            line-height: 1.35;
+        }
+
+        /* Tablet / portrait */
+        @media (max-width: 700px) {
+            #start-modal-content {
+                width: min(96vw, 620px) !important;
+            }
+
+            #difficulty-layout {
+                grid-template-columns: 1fr !important;
+                width: min(100%, 440px);
+            }
+
+            .difficulty-card {
+                display: grid;
+                grid-template-columns: 54px 1fr auto;
+                grid-template-rows: auto auto;
+                align-items: center;
+                text-align: left !important;
+                column-gap: 12px;
+                row-gap: 2px;
+                padding: 14px 16px !important;
+            }
+
+            .difficulty-card .difficulty-emoji {
+                grid-row: 1 / span 2;
+                margin: 0 !important;
+                text-align: center;
+            }
+
+            .difficulty-card .difficulty-en,
+            .difficulty-card .difficulty-name,
+            .difficulty-card .difficulty-desc {
+                grid-column: 2;
+            }
+
+            .difficulty-card .difficulty-desc {
+                margin-top: 2px !important;
+            }
+
+            .difficulty-card .difficulty-state {
+                grid-column: 3;
+                grid-row: 1 / span 2;
+                margin: 0 !important;
+                align-self: center;
+            }
+        }
+
+        /* Short laptop / landscape phone */
+        @media (max-height: 690px) {
+            #start-modal-content {
+                width: min(96vw, 900px) !important;
+                max-height: calc(100dvh - 10px);
+                padding: 12px 18px !important;
+                border-width: 2px !important;
+            }
+
+            #start-header {
+                margin-bottom: 8px !important;
+            }
+
+            #start-modal-content .start-icon {
+                font-size: 34px !important;
+                margin-bottom: 2px !important;
+            }
+
+            #start-modal-content .start-title {
+                font-size: 25px !important;
+                margin-bottom: 3px !important;
+            }
+
+            #start-modal-content .start-description {
+                font-size: 11px !important;
+                margin-bottom: 8px !important;
+                line-height: 1.3;
+            }
+
+            #difficulty-layout {
+                gap: 10px !important;
+                margin-bottom: 8px !important;
+            }
+
+            .difficulty-card {
+                padding: 10px 14px !important;
+            }
+
+            .difficulty-card .difficulty-emoji {
+                font-size: 32px !important;
+                margin-bottom: 3px !important;
+            }
+
+            .difficulty-card .difficulty-name {
+                font-size: 20px !important;
+            }
+
+            .difficulty-card .difficulty-desc {
+                font-size: 10px !important;
+                margin-top: 4px !important;
+            }
+
+            .difficulty-state {
+                padding: 4px 9px !important;
+                margin-top: 6px !important;
+                font-size: 9px !important;
+            }
+
+            #selected-box {
+                padding: 6px !important;
+                margin-bottom: 7px !important;
+            }
+
+            #selected-difficulty-label {
+                font-size: 17px !important;
+            }
+
+            #start-btn {
+                padding-top: 8px !important;
+                padding-bottom: 8px !important;
+                font-size: 16px !important;
+            }
+
+            #start-footnote {
+                display: none;
+            }
+        }
+
+        /* Very small phones */
+        @media (max-width: 430px) {
+            #start-modal {
+                padding: 4px !important;
+            }
+
+            #start-modal-content {
+                width: calc(100vw - 8px) !important;
+                max-height: calc(100dvh - 8px);
+                border-radius: 14px !important;
+                padding: 11px !important;
+                border-width: 2px !important;
+            }
+
+            #start-modal-content .start-icon {
+                font-size: 32px !important;
+            }
+
+            #start-modal-content .start-title {
+                font-size: 22px !important;
+            }
+
+            #start-modal-content .start-description {
+                font-size: 11px !important;
+            }
+
+            .difficulty-card {
+                grid-template-columns: 44px 1fr auto;
+                column-gap: 8px;
+                padding: 11px !important;
+                border-width: 2px !important;
+            }
+
+            .difficulty-card .difficulty-emoji {
+                font-size: 30px !important;
+            }
+
+            .difficulty-card .difficulty-name {
+                font-size: 18px !important;
+            }
+
+            .difficulty-card .difficulty-desc {
+                font-size: 10px !important;
+            }
+
+            .difficulty-state {
+                padding: 4px 7px !important;
+                font-size: 9px !important;
+            }
+        }
+
+
+        /* Game guide button / modal */
+        #difficulty-hard-column {
+            display: flex;
+            flex-direction: column;
+            gap: clamp(8px, 1.2vh, 12px);
+            min-width: 0;
+        }
+
+        #guide-btn {
+            min-height: 50px;
+            transition: transform 0.08s ease, background-color 0.15s ease;
+        }
+
+        #guide-btn:active {
+            transform: scale(0.97);
+        }
+
+        #guide-modal {
+            z-index: 60;
+        }
+
+        #guide-card {
+            width: min(92vw, 620px);
+            max-height: calc(100dvh - 28px);
+            overflow-y: auto;
+            scrollbar-width: thin;
+        }
+
+        .guide-key {
+            min-width: 42px;
+            height: 34px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 9px;
+            border: 2px solid #94a3b8;
+            border-bottom-width: 4px;
+            background: #f8fafc;
+            color: #0f172a;
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .guide-row {
+            display: grid;
+            grid-template-columns: 72px 1fr;
+            gap: 12px;
+            align-items: center;
+        }
+
+        @media (max-width: 700px) {
+            #difficulty-hard-column {
+                width: 100%;
+            }
+
+            #guide-card {
+                width: min(95vw, 520px);
+                padding: 18px !important;
+            }
+
+            .guide-row {
+                grid-template-columns: 60px 1fr;
+                gap: 9px;
+            }
+        }
+
+        @media (max-height: 650px) {
+            #guide-card {
+                max-height: calc(100dvh - 12px);
+                padding: 14px 18px !important;
+            }
+
+            #guide-card h2 {
+                font-size: 22px !important;
+            }
+        }
+
+
+        .guide-visual-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .guide-scene {
+            border-radius: 18px;
+            padding: 14px 12px;
+            border: 2px solid;
+            text-align: center;
+            min-height: 176px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: 0 6px 0 rgba(15, 23, 42, 0.06);
+        }
+
+        .guide-scene-title {
+            font-size: 13px;
+            font-weight: 900;
+            line-height: 1.25;
+        }
+
+        .guide-scene-emoji {
+            font-size: 42px;
+            line-height: 1;
+            margin: 6px 0 2px;
+        }
+
+        .guide-scene-arrow {
+            font-size: 28px;
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .guide-scene-caption {
+            font-size: 12px;
+            font-weight: 800;
+            line-height: 1.4;
+            color: #475569;
+        }
+
+        .guide-mini-keys {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .guide-mini-key {
+            min-width: 34px;
+            height: 30px;
+            padding: 0 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 9px;
+            border: 2px solid #94a3b8;
+            border-bottom-width: 4px;
+            background: #ffffff;
+            color: #0f172a;
+            font-size: 14px;
+            font-weight: 900;
+        }
+
+        .guide-track {
+            width: 100%;
+            height: 56px;
+            border-radius: 16px;
+            background: linear-gradient(to bottom, #bae6fd 0%, #e0f2fe 56%, #86efac 56%, #4ade80 100%);
+            border: 2px solid #bae6fd;
+            position: relative;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .guide-track-line {
+            position: absolute;
+            left: 10px;
+            right: 10px;
+            bottom: 10px;
+            height: 4px;
+            border-radius: 99px;
+            background: rgba(255,255,255,0.7);
+        }
+
+        .guide-runner-dot {
+            position: absolute;
+            left: 14px;
+            bottom: 17px;
+            font-size: 22px;
+            animation: guide-runner-move 2.4s ease-in-out infinite;
+        }
+
+        .guide-house-dot {
+            position: absolute;
+            right: 12px;
+            bottom: 16px;
+            font-size: 24px;
+        }
+
+        @keyframes guide-runner-move {
+            0% { left: 14px; transform: translateY(0); }
+            45% { left: calc(100% - 64px); transform: translateY(-1px); }
+            55% { left: calc(100% - 64px); transform: translateY(0); }
+            100% { left: 14px; transform: translateY(0); }
+        }
+
+        .guide-gauge-demo {
+            width: 100%;
+            height: 18px;
+            border-radius: 999px;
+            border: 2px solid #475569;
+            background: linear-gradient(to right, #fb7185 0%, #86efac 50%, #f59e0b 100%);
+            position: relative;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .guide-gauge-pointer {
+            position: absolute;
+            top: -1px;
+            left: 48%;
+            width: 16px;
+            height: 16px;
+            border-radius: 999px;
+            background: #ffffff;
+            border: 2px solid #0f172a;
+            animation: guide-pointer-sway 2s ease-in-out infinite;
+        }
+
+        @keyframes guide-pointer-sway {
+            0% { left: 14%; }
+            25% { left: 48%; }
+            50% { left: 78%; }
+            75% { left: 48%; }
+            100% { left: 14%; }
+        }
+
+        @media (max-width: 700px) {
+            .guide-visual-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .guide-scene {
+                min-height: 150px;
+            }
+
+            .guide-scene-emoji {
+                font-size: 38px;
+            }
+        }
+
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col items-center justify-center p-2 sm:p-4 text-slate-800">
+
+    <div id="game-card" class="relative w-full max-w-4xl h-[85vh] sm:h-[90vh] bg-sky-200 rounded-3xl shadow-2xl overflow-hidden border-4 border-slate-700 flex flex-col">
+
+        <!-- Game Canvas -->
+        <canvas id="gameCanvas" class="w-full h-full block cursor-pointer"></canvas>
+
+        <!-- Top Navigation HUD -->
+        <div id="top-hud" class="absolute top-3 left-3 right-3 flex justify-between items-start pointer-events-none z-10 gap-2">
+            <!-- Distance Indicator -->
+            <div id="distance-box" class="hud-box bg-white/95 backdrop-blur-md border-2 border-slate-700 px-3 sm:px-4 py-2 rounded-2xl shadow-lg flex flex-col items-center min-w-[95px] sm:min-w-[125px]">
+                <span class="hud-label text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-wider">이동 거리</span>
+                <div class="hud-value text-xl sm:text-3xl font-black text-amber-500"><span id="dist-val">0.0</span> <span class="unit text-sm sm:text-lg">m</span></div>
+            </div>
+
+            <!-- Angle & Dynamic Weight Drift Gauge Bar -->
+            <div id="balance-panel" class="bg-slate-900/90 backdrop-blur-md border-2 border-slate-700 p-2 sm:p-3 rounded-2xl shadow-xl flex flex-col items-center flex-1 max-w-[280px] sm:max-w-[360px] gauge-container">
+                <div class="balance-labels flex justify-between w-full text-[10px] sm:text-xs font-bold text-white mb-1 px-1">
+                    <span class="text-rose-400">◄ 뒤로 쏠림</span>
+                    <span id="gauge-status-text" class="text-emerald-400 font-black">안전 상태</span>
+                    <span class="text-amber-400">앞으로 쏠림 ►</span>
+                </div>
+
+                <!-- Meter Gauge Bar -->
+                <div class="relative w-full h-4 bg-slate-800 rounded-full overflow-hidden border border-slate-600 flex items-center">
+                    <div class="absolute inset-0 bg-gradient-to-r from-rose-600 via-emerald-400 to-rose-600 opacity-80"></div>
+                    <div class="absolute left-1/2 -translate-x-1/2 w-20 h-full bg-emerald-300/30 border-x border-emerald-400/50"></div>
+                    <div class="absolute left-1/2 -translate-x-1/2 w-1 h-full bg-white z-10 opacity-80"></div>
+                    <!-- Dynamic Pointer -->
+                    <div id="gauge-pointer" class="absolute top-0 bottom-0 w-3.5 bg-white border-2 border-slate-900 rounded-full shadow-md transform -translate-x-1/2 transition-transform duration-75 left-1/2 z-20"></div>
+                </div>
+
+                <!-- Status & Warning Badges -->
+                <div class="status-row flex items-center justify-between w-full mt-1.5 px-0.5 gap-1">
+                    <span id="drift-force-badge" class="text-[10px] sm:text-[11px] font-extrabold text-emerald-300 bg-emerald-950/80 px-2 py-0.5 rounded-md border border-emerald-600/50">
+                        🌱 쉬운 난이도 모드
+                    </span>
+                    <span id="accel-warning" class="hidden text-[10px] sm:text-[11px] font-black text-rose-300 bg-rose-950/90 px-2 py-0.5 rounded-md border border-rose-600/60 warning-active">
+                        ⚡ 균형 잡기!
+                    </span>
+                </div>
+            </div>
+
+            <!-- Best Distance & Audio Control Toggle -->
+            <div id="best-wrapper" class="flex items-center gap-2 pointer-events-auto">
+                <div id="best-box" class="hud-box bg-white/95 backdrop-blur-md border-2 border-slate-700 px-3 sm:px-4 py-2 rounded-2xl shadow-lg flex flex-col items-center min-w-[95px] sm:min-w-[125px]">
+                    <span class="hud-label text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-wider">최고 기록</span>
+                    <div class="hud-value text-xl sm:text-3xl font-black text-indigo-600"><span id="best-val">0.0</span> <span class="unit text-sm sm:text-lg">m</span></div>
+                </div>
+
+                <!-- Mute Toggle Button -->
+                <button id="mute-btn" class="btn-press bg-slate-800 hover:bg-slate-700 text-white border-2 border-slate-600 p-2.5 sm:p-3 rounded-2xl shadow-lg flex items-center justify-center text-xl sm:text-2xl" title="음소거 토글">
+                    <span id="mute-icon">🔊</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Active Power-up Timers -->
+        <div id="powerup-hud">
+            <div id="speed-buff" class="powerup-pill hidden">👟 스피드 5.0초</div>
+            <div id="stability-buff" class="powerup-pill hidden">🥤 균형 안정 5.0초</div>
+        </div>
+
+        <div id="control-bar" class="absolute bottom-4 left-4 right-4 flex justify-between items-center pointer-events-auto z-10 gap-3 sm:gap-4">
+            <button id="btn-left" class="btn-press flex-1 py-3.5 sm:py-5 bg-gradient-to-b from-rose-500 to-rose-700 active:from-rose-600 active:to-rose-800 text-white font-black text-lg sm:text-2xl rounded-2xl border-b-4 border-rose-900 shadow-lg flex items-center justify-center gap-1.5 select-none">
+                <svg class="w-6 h-6 sm:w-7 sm:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+                <span>뒤로 일으키기 (◄ / A)</span>
+            </button>
+            <button id="btn-right" class="btn-press flex-1 py-3.5 sm:py-5 bg-gradient-to-b from-sky-500 to-sky-700 active:from-sky-600 active:to-sky-800 text-white font-black text-lg sm:text-2xl rounded-2xl border-b-4 border-sky-900 shadow-lg flex items-center justify-center gap-1.5 select-none">
+                <span>앞으로 숙이기 (► / D)</span>
+                <svg class="w-6 h-6 sm:w-7 sm:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
+            </button>
+        </div>
+
+        <!-- Start Overlay Screen -->
+        <div id="start-modal" class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm z-30 flex flex-col items-center justify-center p-4 sm:p-6 text-center text-white">
+            <div id="start-modal-content" class="bg-white text-slate-800 p-6 sm:p-8 rounded-3xl border-4 border-slate-700 shadow-2xl max-w-5xl w-full">
+                <div id="start-header" class="flex flex-col items-center mb-5">
+                    <div class="start-icon text-6xl mb-2">🏃</div>
+                    <h1 class="start-title text-3xl sm:text-4xl font-black text-slate-800 mb-2">사람 균형 달리기</h1>
+                    <p class="start-description text-slate-600 text-sm sm:text-base leading-relaxed">
+                        원하는 난이도를 선택한 뒤 게임을 시작하세요.<br>
+                        <strong>쉬움</strong>과 <strong>어려움</strong> 중 하나를 선택할 수 있습니다.
+                    </p>
+                </div>
+
+                <div id="difficulty-layout" class="grid grid-cols-2 gap-4 sm:gap-6 mb-6 max-w-3xl mx-auto">
+                    <button
+                        id="difficulty-easy"
+                        type="button"
+                        class="difficulty-card difficulty-card-easy selected bg-emerald-50 border-4 border-emerald-300 rounded-3xl p-5 sm:p-7 shadow-md btn-press text-center"
+                    >
+                        <div class="difficulty-emoji text-5xl sm:text-6xl mb-3">🌱</div>
+                        <div class="difficulty-en text-xs font-black uppercase tracking-widest text-emerald-600 mb-1">Easy</div>
+                        <div class="difficulty-name text-2xl sm:text-3xl font-black text-emerald-700">쉬움</div>
+                        <div class="difficulty-desc mt-3 text-sm sm:text-base text-slate-600 font-bold">휘청임이 적고 복구가 쉬움</div>
+                        <div class="difficulty-state mt-4 inline-flex items-center justify-center px-4 py-2 rounded-full bg-emerald-600 text-white text-xs sm:text-sm font-black">
+                            선택됨
+                        </div>
+                    </button>
+
+                    <div id="difficulty-hard-column">
+                        <button
+                            id="difficulty-hard"
+                            type="button"
+                            class="difficulty-card difficulty-card-hard bg-rose-50 border-4 border-rose-300 rounded-3xl p-5 sm:p-7 shadow-md btn-press text-center w-full"
+                        >
+                            <div class="difficulty-emoji text-5xl sm:text-6xl mb-3">🔥</div>
+                            <div class="difficulty-en text-xs font-black uppercase tracking-widest text-rose-600 mb-1">Hard</div>
+                            <div class="difficulty-name text-2xl sm:text-3xl font-black text-rose-700">어려움</div>
+                            <div class="difficulty-desc mt-3 text-sm sm:text-base text-slate-600 font-bold">쉬움보다 휘청임 약 5배</div>
+                            <div class="difficulty-state mt-4 inline-flex items-center justify-center px-4 py-2 rounded-full bg-rose-100 text-rose-700 text-xs sm:text-sm font-black border border-rose-300">
+                                선택하기
+                            </div>
+                        </button>
+
+                        <button
+                            id="guide-btn"
+                            type="button"
+                            class="btn-press w-full py-3 px-4 bg-slate-800 hover:bg-slate-700 text-white font-black text-sm sm:text-base rounded-2xl border-b-4 border-slate-950 shadow-md flex items-center justify-center gap-2"
+                        >
+                            <span>📘</span>
+                            <span>게임 설명서</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="difficulty-footer" class="max-w-md mx-auto mb-5">
+                    <div id="selected-box" class="bg-slate-50 border-2 border-slate-200 rounded-2xl p-3 mb-4">
+                        <div class="text-xs font-black text-slate-500 uppercase mb-1">선택된 난이도</div>
+                        <div id="selected-difficulty-label" class="text-xl sm:text-2xl font-black text-emerald-600">쉬움</div>
+                    </div>
+
+                    <button id="start-btn" class="btn-press w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xl rounded-2xl border-b-4 border-indigo-800 shadow-xl">
+                        게임 시작 (Space)
+                    </button>
+                </div>
+
+                <div id="start-footnote" class="text-xs sm:text-sm text-slate-500 font-bold">
+                    어려움은 쉬움보다 자연 휘청임이 약 5배 강하게 적용됩니다.
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Guide Modal -->
+        <div id="guide-modal" class="absolute inset-0 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4 text-slate-800">
+            <div id="guide-card" class="bg-white border-4 border-slate-700 rounded-3xl shadow-2xl p-5 sm:p-7 text-left">
+                <div class="flex items-start justify-between gap-4 mb-5">
+                    <div>
+                        <div class="text-xs font-black uppercase tracking-widest text-indigo-500 mb-1">How to Play</div>
+                        <h2 class="text-2xl sm:text-3xl font-black text-slate-800">게임 설명서</h2>
+                        <p class="text-sm text-slate-500 font-bold mt-1">균형을 유지하면서 200m 지점의 집까지 도착하세요.</p>
+                    </div>
+                    <button id="guide-close-x" type="button" class="btn-press shrink-0 w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-black text-xl border-2 border-slate-300">
+                        ×
+                    </button>
+                </div>
+
+                <div class="space-y-3">
+                    <div class="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4">
+                        <div class="font-black text-amber-800 mb-3 text-lg">🖼️ 그림으로 먼저 보기</div>
+
+                        <div class="guide-visual-grid">
+                            <div class="guide-scene bg-rose-50 border-rose-200">
+                                <div class="guide-scene-title text-rose-700">앞으로 기울면</div>
+                                <div>
+                                    <div class="guide-scene-emoji">🏃</div>
+                                    <div class="guide-scene-arrow text-rose-500">↶</div>
+                                    <div class="guide-mini-keys">
+                                        <span class="guide-mini-key">A</span>
+                                        <span class="guide-mini-key">◀</span>
+                                    </div>
+                                </div>
+                                <div class="guide-scene-caption">
+                                    앞으로 넘어질 것 같으면<br><strong class="text-rose-600">A 또는 ◀</strong> 를 눌러요!
+                                </div>
+                            </div>
+
+                            <div class="guide-scene bg-sky-50 border-sky-200">
+                                <div class="guide-scene-title text-sky-700">뒤로 기울면</div>
+                                <div>
+                                    <div class="guide-scene-emoji">🏃</div>
+                                    <div class="guide-scene-arrow text-sky-500">↷</div>
+                                    <div class="guide-mini-keys">
+                                        <span class="guide-mini-key">D</span>
+                                        <span class="guide-mini-key">▶</span>
+                                    </div>
+                                </div>
+                                <div class="guide-scene-caption">
+                                    뒤로 넘어질 것 같으면<br><strong class="text-sky-600">D 또는 ▶</strong> 를 눌러요!
+                                </div>
+                            </div>
+
+                            <div class="guide-scene bg-emerald-50 border-emerald-200">
+                                <div class="guide-scene-title text-emerald-700">집에 닿으면 성공!</div>
+                                <div>
+                                    <div class="guide-track">
+                                        <div class="guide-track-line"></div>
+                                        <div class="guide-runner-dot">🏃</div>
+                                        <div class="guide-house-dot">🏠</div>
+                                    </div>
+                                    <div class="guide-gauge-demo">
+                                        <div class="guide-gauge-pointer"></div>
+                                    </div>
+                                </div>
+                                <div class="guide-scene-caption">
+                                    중심을 잘 잡고 달려서<br><strong class="text-emerald-600">200m 집</strong>까지 가면 돼요!
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-sky-50 border-2 border-sky-200 rounded-2xl p-4">
+                        <div class="font-black text-sky-800 mb-3">🎮 기본 조작</div>
+
+                        <div class="space-y-3 text-sm font-bold text-slate-700">
+                            <div class="guide-row">
+                                <div class="flex gap-1">
+                                    <span class="guide-key">A</span>
+                                    <span class="guide-key">◀</span>
+                                </div>
+                                <div><strong class="text-rose-600">뒤로 일으키기</strong> — 몸이 앞으로 쏠릴 때 사용합니다.</div>
+                            </div>
+
+                            <div class="guide-row">
+                                <div class="flex gap-1">
+                                    <span class="guide-key">D</span>
+                                    <span class="guide-key">▶</span>
+                                </div>
+                                <div><strong class="text-sky-600">앞으로 숙이기</strong> — 몸이 뒤로 넘어가려 할 때 사용합니다.</div>
+                            </div>
+
+                            <div class="guide-row">
+                                <div class="flex gap-1">
+                                    <span class="guide-key">Space</span>
+                                </div>
+                                <div><strong class="text-indigo-600">게임 시작 / 다시 도전</strong></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid sm:grid-cols-2 gap-3">
+                        <div class="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4">
+                            <div class="font-black text-emerald-800 mb-2">⚖️ 균형 잡기</div>
+                            <p class="text-sm text-slate-700 font-bold leading-relaxed">
+                                화면 위의 균형 게이지가 <strong>가운데에 가까울수록 안전</strong>합니다.
+                                너무 앞이나 뒤로 기울면 넘어집니다.
+                            </p>
+                        </div>
+
+                        <div class="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4">
+                            <div class="font-black text-amber-800 mb-2">🏠 목표</div>
+                            <p class="text-sm text-slate-700 font-bold leading-relaxed">
+                                넘어지지 않고 <strong>200m 지점의 집</strong>에 닿으면 도착 성공입니다.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="bg-violet-50 border-2 border-violet-200 rounded-2xl p-4">
+                        <div class="font-black text-violet-800 mb-2">✨ 아이템</div>
+                        <div class="grid sm:grid-cols-2 gap-2 text-sm font-bold text-slate-700">
+                            <div class="bg-white/80 rounded-xl p-3 border border-violet-100">
+                                👟 <strong>신발</strong><br>
+                                <span class="text-slate-500">5초 동안 이동 속도 증가</span>
+                            </div>
+                            <div class="bg-white/80 rounded-xl p-3 border border-violet-100">
+                                🥤 <strong>에너지 드링크</strong><br>
+                                <span class="text-slate-500">5초 동안 휘청임 감소</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs sm:text-sm font-bold text-slate-600">
+                        💡 <strong>팁:</strong> 버튼을 꾹 누르기보다, 게이지를 보면서 짧게 톡톡 눌러 주면 더 쉽게 중심을 잡을 수 있어요.
+                    </div>
+                </div>
+
+                <button id="guide-close-btn" type="button" class="btn-press w-full mt-5 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-base sm:text-lg rounded-2xl border-b-4 border-indigo-800 shadow-lg">
+                    설명서 닫기
+                </button>
+            </div>
+        </div>
+
+        <!-- Game Over Overlay Screen -->
+        <div id="game-over-modal" class="absolute inset-0 bg-slate-900/85 backdrop-blur-md z-30 flex flex-col items-center justify-center p-6 text-center text-white hidden">
+            <div class="bg-white text-slate-800 p-6 sm:p-8 rounded-3xl border-4 border-slate-700 shadow-2xl max-w-md w-full flex flex-col items-center">
+                <div class="text-6xl mb-2">💥</div>
+                <h2 class="text-3xl font-black text-rose-500 mb-1">넘어졌습니다!</h2>
+                <p id="cause-text" class="text-slate-500 mb-5 font-bold text-sm">무게 중심을 잃고 쓰러졌습니다.</p>
+
+                <div class="bg-amber-50 rounded-2xl p-4 w-full mb-6 border border-amber-200 flex justify-around">
+                    <div class="text-center">
+                        <div class="text-xs font-bold text-amber-600 uppercase">이동 거리</div>
+                        <div class="text-3xl font-black text-slate-800"><span id="final-dist">0.0</span> m</div>
+                    </div>
+                    <div class="w-px bg-amber-200"></div>
+                    <div class="text-center">
+                        <div class="text-xs font-bold text-indigo-600 uppercase">최고 기록</div>
+                        <div class="text-3xl font-black text-indigo-600"><span id="final-best">0.0</span> m</div>
+                    </div>
+                </div>
+
+                <button id="restart-btn" class="btn-press w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xl rounded-2xl border-b-4 border-indigo-800 shadow-xl flex items-center justify-center gap-2">
+                    <span>다시 도전 (Space)</span>
+                </button>
+
+                <button id="menu-btn" class="btn-press w-full mt-3 py-3.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-black text-lg rounded-2xl border-b-4 border-slate-400 shadow-md flex items-center justify-center gap-2">
+                    <span>메뉴로 돌아가기</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Goal / Success Overlay Screen -->
+        <div id="success-modal" class="absolute inset-0 bg-slate-900/85 backdrop-blur-md z-30 flex flex-col items-center justify-center p-6 text-center text-white hidden">
+            <div class="bg-white text-slate-800 p-6 sm:p-8 rounded-3xl border-4 border-emerald-600 shadow-2xl max-w-md w-full flex flex-col items-center">
+                <div class="text-6xl mb-2">🏠</div>
+                <h2 class="text-3xl font-black text-emerald-600 mb-1">도착했습니다!</h2>
+                <p class="text-slate-500 mb-5 font-bold text-sm">200m 지점의 집에 무사히 도착했습니다.</p>
+
+                <div class="bg-emerald-50 rounded-2xl p-4 w-full mb-6 border border-emerald-200 flex justify-around">
+                    <div class="text-center">
+                        <div class="text-xs font-bold text-emerald-600 uppercase">도착 거리</div>
+                        <div class="text-3xl font-black text-slate-800"><span id="success-dist">200.0</span> m</div>
+                    </div>
+                    <div class="w-px bg-emerald-200"></div>
+                    <div class="text-center">
+                        <div class="text-xs font-bold text-indigo-600 uppercase">최고 기록</div>
+                        <div class="text-3xl font-black text-indigo-600"><span id="success-best">200.0</span> m</div>
+                    </div>
+                </div>
+
+                <button id="success-restart-btn" class="btn-press w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xl rounded-2xl border-b-4 border-emerald-800 shadow-xl flex items-center justify-center gap-2">
+                    <span>다시 도전 (Space)</span>
+                </button>
+
+                <button id="success-menu-btn" class="btn-press w-full mt-3 py-3.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-black text-lg rounded-2xl border-b-4 border-slate-400 shadow-md flex items-center justify-center gap-2">
+                    <span>메뉴로 돌아가기</span>
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('game-card');
+
+        let width = canvas.width = container.clientWidth;
+        let height = canvas.height = container.clientHeight;
+
+        window.addEventListener('resize', () => {
+            width = canvas.width = container.clientWidth;
+            height = canvas.height = container.clientHeight;
+        });
+
+        // Web Audio Synthesizer Setup
+        let isMuted = localStorage.getItem('runner_is_muted') === 'true';
+        const muteBtn = document.getElementById('mute-btn');
+        const muteIcon = document.getElementById('mute-icon');
+
+        function updateMuteUI() {
+            muteIcon.innerText = isMuted ? '🔇' : '🔊';
+            if (isMuted) {
+                muteBtn.classList.add('bg-rose-900', 'border-rose-700');
+            } else {
+                muteBtn.classList.remove('bg-rose-900', 'border-rose-700');
+            }
+        }
+        updateMuteUI();
+
+        muteBtn.addEventListener('click', () => {
+            isMuted = !isMuted;
+            localStorage.setItem('runner_is_muted', isMuted.toString());
+            updateMuteUI();
+        });
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(type) {
+            if (isMuted) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            try {
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                if (type === 'step') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(260 + Math.random() * 40, now);
+                    osc.frequency.exponentialRampToValueAtTime(130, now + 0.07);
+                    gain.gain.setValueAtTime(0.08, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.07);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.07);
+                } else if (type === 'fall') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.exponentialRampToValueAtTime(35, now + 0.45);
+                    gain.gain.setValueAtTime(0.25, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.45);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.45);
+                } else if (type === 'warning') {
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(500, now);
+                    osc.frequency.setValueAtTime(800, now + 0.04);
+                    gain.gain.setValueAtTime(0.04, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.08);
+                } else if (type === 'pickup') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(520, now);
+                    osc.frequency.setValueAtTime(720, now + 0.08);
+                    osc.frequency.setValueAtTime(980, now + 0.16);
+                    gain.gain.setValueAtTime(0.11, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.24);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.24);
+                }
+            } catch (e) {}
+        }
+
+        let gameState = 'START';
+        let selectedDifficulty = 'easy';
+        let guideOpen = false;
+
+        // Difficulty values are defined in one place so the UI and physics
+        // can never become reversed accidentally.
+        const DIFFICULTY_SETTINGS = {
+            easy: {
+                wobbleMultiplier: 0.7,
+                controlPower: 0.020,
+                correctionBoost: 2.4,
+                damping: 0.80,
+                maxSafeAngle: 1.68
+            },
+            hard: {
+                // Exactly 5x the easy-mode natural wobble: 0.7 × 5 = 3.5
+                wobbleMultiplier: 3.5,
+                controlPower: 0.016,
+                correctionBoost: 1.9,
+                damping: 0.90,
+                maxSafeAngle: 1.50
+            }
+        };
+
+        function getDifficultySettings() {
+            return selectedDifficulty === 'hard'
+                ? DIFFICULTY_SETTINGS.hard
+                : DIFFICULTY_SETTINGS.easy;
+        }
+
+        let currentDistance = 0;
+        let bestDistance = parseFloat(localStorage.getItem('runner_best_dist') || '0');
+        document.getElementById('best-val').innerText = bestDistance.toFixed(1);
+
+        const GOAL_DISTANCE_METERS = 200;
+        const GOAL_WORLD_X = 180 + GOAL_DISTANCE_METERS * 80;
+        const GOAL_HOUSE_WIDTH = 130;
+        const GOAL_HOUSE_HEIGHT = 104;
+
+        const keys = { left: false, right: false };
+
+        function updateKeyInput(code, keyStr, isPressed) {
+            if (['ArrowLeft', 'KeyA', 'ArrowUp', 'KeyW'].includes(code) || ['ArrowLeft', 'a', 'A', 'ArrowUp', 'w', 'W'].includes(keyStr)) {
+                keys.left = isPressed;
+            }
+            if (['ArrowRight', 'KeyD', 'ArrowDown', 'KeyS'].includes(code) || ['ArrowRight', 'd', 'D', 'ArrowDown', 's', 'S'].includes(keyStr)) {
+                keys.right = isPressed;
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'KeyA', 'KeyD', 'KeyW', 'KeyS'].includes(e.code) || ['ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+                e.preventDefault();
+            }
+            updateKeyInput(e.code, e.key, true);
+
+            if (e.code === 'Escape' && guideOpen) {
+                closeGuide();
+                return;
+            }
+
+            if (e.code === 'Space' || e.key === ' ') {
+                if (!guideOpen && (gameState === 'START' || gameState === 'GAMEOVER' || gameState === 'FINISHED')) {
+                    restartGame();
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            updateKeyInput(e.code, e.key, false);
+        });
+
+        window.addEventListener('blur', () => {
+            keys.left = false;
+            keys.right = false;
+        });
+
+        class Runner {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.x = 180;
+                this.yOffset = 0;
+                this.groundY = height - 120;
+
+                this.angle = 0;
+                this.angularVelocity = 0;
+
+                const difficulty = getDifficultySettings();
+                this.maxSafeAngle = difficulty.maxSafeAngle;
+
+                this.walkPhase = 0;
+                this.walkSpeed = 0.085;
+                this.baseForwardSpeed = 2.6;
+                this.straightLegLen = 73;
+
+                this.driftTime = Math.random() * 100;
+                this.driftTorque = 0;
+
+                this.smoothedLeftShoulder = 0;
+                this.smoothedRightShoulder = 0;
+
+                this.lastStepTrigger = false;
+                this.isFallen = false;
+                this.lastWarningTime = 0;
+                this.fallDirection = 1; // 1 = forward, -1 = backward
+
+                // Power-up timers (performance.now() timestamps)
+                this.speedBoostUntil = 0;
+                this.stabilityBoostUntil = 0;
+            }
+
+            activatePowerup(type) {
+                const now = performance.now();
+                const duration = 5000;
+
+                if (type === 'speed') {
+                    this.speedBoostUntil = now + duration;
+                } else if (type === 'stability') {
+                    this.stabilityBoostUntil = now + duration;
+
+                    // Immediately calm excessive angular momentum when picked up.
+                    this.angularVelocity *= 0.45;
+                }
+            }
+
+            hasSpeedBoost() {
+                return performance.now() < this.speedBoostUntil;
+            }
+
+            hasStabilityBoost() {
+                return performance.now() < this.stabilityBoostUntil;
+            }
+
+            update() {
+                if (gameState !== 'PLAYING' || this.isFallen) return;
+
+                const now = performance.now();
+                const speedBoostActive = now < this.speedBoostUntil;
+                const stabilityBoostActive = now < this.stabilityBoostUntil;
+
+                this.driftTime += 0.015;
+                const distanceMeters = Math.max(0, (this.x - 180) / 80);
+                const driftIntensity = 0.25 + Math.min(0.65, distanceMeters / 150);
+
+                const primaryWave = Math.sin(this.driftTime * 0.45) * 0.0008;
+                const secondaryWave = Math.cos(this.driftTime * 0.9) * 0.0005;
+
+                const difficulty = getDifficultySettings();
+
+                // Easy uses a calmer baseline.
+                // Hard uses exactly 5x the natural wobble of Easy.
+                const stabilityDriftMultiplier = stabilityBoostActive ? 0.24 : 1.0;
+                this.driftTorque =
+                    (primaryWave + secondaryWave) *
+                    driftIntensity *
+                    stabilityDriftMultiplier *
+                    difficulty.wobbleMultiplier;
+
+                let userTorque = 0;
+                let baseTorquePower = difficulty.controlPower;
+
+                // Pressing the correct recovery direction is more forgiving on Easy,
+                // while Hard requires tighter timing.
+                if ((this.angle < 0 && keys.right) || (this.angle > 0 && keys.left)) {
+                    baseTorquePower *= difficulty.correctionBoost;
+                }
+
+                if (keys.left) userTorque -= baseTorquePower;   
+                if (keys.right) userTorque += baseTorquePower;  
+
+                let backwardAccel = 0;
+                let downwardGravityAccel = 0;
+
+                if (this.angle < 0) {
+                    const tiltSeverity = Math.abs(this.angle);
+                    backwardAccel = Math.pow(tiltSeverity, 1.2) * 0.0028;
+                    this.x -= Math.pow(tiltSeverity, 1.3) * 0.8;
+                } else {
+                    backwardAccel = -Math.sin(this.angle) * 0.0015;
+                }
+
+                const tiltMagnitude = Math.abs(this.angle);
+                this.yOffset = Math.pow(tiltMagnitude, 1.2) * 16;
+                downwardGravityAccel = (this.yOffset / 16) * 0.0018;
+
+                // Stability drink also softens gravity-driven tipping.
+                if (stabilityBoostActive) {
+                    backwardAccel *= 0.62;
+                    downwardGravityAccel *= 0.52;
+                    baseTorquePower *= 1.08;
+                }
+
+                const totalTorque = userTorque + this.driftTorque - backwardAccel + (this.angle < 0 ? -downwardGravityAccel : downwardGravityAccel);
+
+                this.angularVelocity += totalTorque;
+
+                // Easy settles back toward center faster.
+                // Hard keeps more angular momentum, making balance recovery harder.
+                this.angularVelocity *= stabilityBoostActive ? 0.72 : difficulty.damping;
+                this.angle += this.angularVelocity;
+
+                // Running shoes: faster field movement + slightly faster leg animation.
+                const speedMultiplier = speedBoostActive ? 1.72 : 1.0;
+                const animationMultiplier = speedBoostActive ? 1.48 : 1.0;
+
+                this.x += this.baseForwardSpeed * speedMultiplier;
+                this.walkPhase += this.walkSpeed * animationMultiplier;
+
+                const currentStepPhase = Math.sin(this.walkPhase) > 0;
+                if (currentStepPhase !== this.lastStepTrigger) {
+                    playSound('step');
+                    createDustParticles(this.x, this.groundY);
+                    this.lastStepTrigger = currentStepPhase;
+                }
+
+                if (Math.abs(this.angle) > 0.8 || this.yOffset > 18) {
+                    const now = Date.now();
+                    if (now - this.lastWarningTime > 380) {
+                        playSound('warning');
+                        this.lastWarningTime = now;
+                    }
+                }
+
+                if (Math.abs(this.angle) > this.maxSafeAngle) {
+                    this.fall();
+                }
+            }
+
+            fall() {
+                this.isFallen = true;
+                this.fallDirection = this.angle < 0 ? -1 : 1;
+                playSound('fall');
+                createDustParticles(this.x, this.groundY - 20, 25);
+                setTimeout(() => {
+                    triggerGameOver();
+                }, 600);
+            }
+
+            draw(ctx, cameraX) {
+                const renderX = this.x - cameraX;
+                const hipY = this.groundY - this.straightLegLen + this.yOffset;
+
+                if (this.isFallen) {
+                    this.drawFallPose(ctx, renderX);
+                    return;
+                }
+
+                const legAngle1 = Math.sin(this.walkPhase) * 0.44;
+                const legAngle2 = -Math.sin(this.walkPhase) * 0.44;
+
+                this.drawStraightLeg(ctx, renderX, hipY, legAngle1, '#252b33', '#111827');
+
+                ctx.save();
+                ctx.translate(renderX, hipY);
+                ctx.rotate(this.angle);
+
+                // School uniform torso based on the reference image
+                this.drawSchoolUniformTorso(ctx);
+
+                // Single visible arm for a cleaner, more natural look.
+                // This version keeps the opposite arm visible and hides the previous one behind the torso.
+                const armPhase = Math.sin(this.walkPhase);
+                const balanceAssist = Math.max(-1, Math.min(1, this.angle / 0.95));
+                const tiltBoost = this.angle * 1.25;
+
+                const visibleCrossAmount = Math.max(0, balanceAssist);
+
+                const targetVisibleShoulder =
+                    -armPhase * 0.72 - 0.22 - tiltBoost + visibleCrossAmount * 1.0;
+
+                this.smoothedLeftShoulder += (targetVisibleShoulder - this.smoothedLeftShoulder) * 0.22;
+
+                this.drawOrganicArm(ctx, -12, -44, this.smoothedLeftShoulder, true, armPhase, visibleCrossAmount, balanceAssist);
+
+                // Head
+                ctx.fillStyle = '#f6c7a8';
+                ctx.beginPath();
+                ctx.arc(0, -70, 16, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#d89a78';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Headband
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.roundRect(-16, -80, 32, 7, 3);
+                ctx.fill();
+
+                // Face / Expression
+                ctx.fillStyle = '#0f172a';
+                if (Math.abs(this.angle) > 0.75) {
+                    ctx.font = 'bold 12px sans-serif';
+                    ctx.fillText('x', 3, -68);
+                } else {
+                    ctx.beginPath();
+                    ctx.arc(6, -71, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+
+
+                ctx.restore();
+
+                this.drawStraightLeg(ctx, renderX, hipY, legAngle2, '#1f252d', '#111827');
+            }
+
+            drawSchoolUniformTorso(ctx) {
+                // Right-facing side-profile school uniform.
+                const blazer = '#4b5258';
+                const blazerDark = '#343a40';
+                const blazerEdge = '#2f353a';
+                const shirt = '#f8fafc';
+                const tie = '#111827';
+
+                // Main jacket silhouette:
+                // narrower back on the left, slightly fuller chest/front on the right.
+                ctx.fillStyle = blazer;
+                ctx.strokeStyle = blazerEdge;
+                ctx.lineWidth = 2.2;
+                ctx.beginPath();
+                ctx.moveTo(-10, -52);      // back shoulder
+                ctx.quadraticCurveTo(-14, -43, -12, -27);
+                ctx.lineTo(-10, -6);       // back hem
+                ctx.quadraticCurveTo(0, -3, 10, -6);
+                ctx.lineTo(14, -26);       // front lower edge
+                ctx.quadraticCurveTo(16, -42, 9, -52);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Small visible shirt triangle near the front collar
+                ctx.fillStyle = shirt;
+                ctx.beginPath();
+                ctx.moveTo(1, -51);
+                ctx.lineTo(8, -49);
+                ctx.lineTo(7, -39);
+                ctx.lineTo(2, -42);
+                ctx.lineTo(-1, -48);
+                ctx.closePath();
+                ctx.fill();
+
+                // Side-view black tie, hanging near the front edge
+                ctx.fillStyle = tie;
+                ctx.beginPath();
+                ctx.moveTo(4, -45);
+                ctx.lineTo(7, -44);
+                ctx.lineTo(8, -31);
+                ctx.lineTo(5, -27);
+                ctx.lineTo(3, -32);
+                ctx.closePath();
+                ctx.fill();
+
+                // One prominent lapel on the visible side
+                ctx.fillStyle = blazerDark;
+                ctx.beginPath();
+                ctx.moveTo(9, -50);
+                ctx.lineTo(4, -39);
+                ctx.lineTo(8, -29);
+                ctx.lineTo(13, -38);
+                ctx.closePath();
+                ctx.fill();
+
+                // Hint of rear lapel/seam
+                ctx.strokeStyle = 'rgba(31,37,45,0.6)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(-5, -48);
+                ctx.lineTo(-2, -34);
+                ctx.stroke();
+
+                // Side-view button line: only the near/front column is clearly visible
+                ctx.fillStyle = '#d6d3d1';
+                for (const by of [-29, -18]) {
+                    ctx.beginPath();
+                    ctx.arc(7.2, by, 1.8, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // A faint second row toward the body center for double-breasted detail
+                ctx.save();
+                ctx.globalAlpha = 0.45;
+                for (const by of [-29, -18]) {
+                    ctx.beginPath();
+                    ctx.arc(2.2, by, 1.45, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+
+                // Lower jacket seam
+                ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(-8, -10);
+                ctx.quadraticCurveTo(2, -7, 10, -10);
+                ctx.stroke();
+
+                // Yellow school crest on the visible chest side
+                ctx.fillStyle = '#facc15';
+                ctx.beginPath();
+                ctx.moveTo(8.5, -36);
+                ctx.lineTo(12, -33);
+                ctx.lineTo(10.5, -28);
+                ctx.lineTo(6.5, -28);
+                ctx.lineTo(5.5, -33);
+                ctx.closePath();
+                ctx.fill();
+
+                // Thin front edge seam helps sell the side profile
+                ctx.strokeStyle = 'rgba(17,24,39,0.45)';
+                ctx.lineWidth = 1.2;
+                ctx.beginPath();
+                ctx.moveTo(11, -40);
+                ctx.lineTo(10, -11);
+                ctx.stroke();
+            }
+
+            drawFallPose(ctx, renderX) {
+                const ground = this.groundY;
+                const dir = this.fallDirection; // 1 forward, -1 backward
+
+                const drawFallLeg = (hipX, hipY, footX, footY, legColor, shoeColor) => {
+                    ctx.save();
+                    // Match normal leg thickness so the legs do not bulge after falling.
+                    ctx.lineWidth = 10.5;
+                    ctx.lineCap = 'round';
+                    ctx.strokeStyle = legColor;
+
+                    ctx.beginPath();
+                    ctx.moveTo(hipX, hipY);
+                    ctx.lineTo(footX, footY);
+                    ctx.stroke();
+
+                    // small hip cap so the connection to the torso looks intentional
+                    ctx.fillStyle = legColor;
+                    ctx.beginPath();
+                    ctx.arc(hipX, hipY, 4.2, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // shoe
+                    const dx = footX - hipX;
+                    const dy = footY - hipY;
+                    const shoeAngle = Math.atan2(dy, dx);
+
+                    ctx.save();
+                    ctx.translate(footX, footY);
+                    ctx.rotate(shoeAngle);
+                    ctx.fillStyle = shoeColor;
+                    ctx.beginPath();
+                    ctx.ellipse(5, -0.8, 9.5, 4.4, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+
+                    ctx.restore();
+                };
+
+                if (dir > 0) {
+                    // --------------------------------------------------
+                    // FORWARD FALL
+                    // Torso goes forward; both legs trail behind.
+                    // Leg roots are calculated from the rotated torso's
+                    // exact lower-center hip position.
+                    // --------------------------------------------------
+                    const bodyX = renderX + 6;
+                    const bodyY = ground - 16;
+                    const bodyAngle = 1.02;
+
+                    // local torso bottom-center is approximately (0, -3)
+                    const localHipX = 0;
+                    const localHipY = -3;
+
+                    const hipX =
+                        bodyX +
+                        localHipX * Math.cos(bodyAngle) -
+                        localHipY * Math.sin(bodyAngle);
+
+                    const hipY =
+                        bodyY +
+                        localHipX * Math.sin(bodyAngle) +
+                        localHipY * Math.cos(bodyAngle);
+
+                    // draw trailing legs first so torso naturally overlaps the hip area
+                    drawFallLeg(
+                        hipX - 2,
+                        hipY + 1,
+                        hipX - 58,
+                        Math.min(ground - 2, hipY + 38),
+                        '#1f252d',
+                        '#111827'
+                    );
+
+                    drawFallLeg(
+                        hipX + 3,
+                        hipY + 1,
+                        hipX - 38,
+                        Math.min(ground - 3, hipY + 50),
+                        '#252b33',
+                        '#111827'
+                    );
+
+                    ctx.save();
+                    ctx.translate(bodyX, bodyY);
+                    ctx.rotate(bodyAngle);
+
+                    // school uniform torso
+                    this.drawSchoolUniformTorso(ctx);
+
+                    // arm reaching toward the ground
+                    this.drawOrganicArm(ctx, -10, -43, 1.15, true, 0.15, 0.0, 0.0);
+
+                    // head
+                    ctx.fillStyle = '#f6c7a8';
+                    ctx.beginPath();
+                    ctx.arc(0, -70, 16, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#d89a78';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    // headband
+                    ctx.fillStyle = '#ef4444';
+                    ctx.beginPath();
+                    ctx.roundRect(-16, -80, 32, 7, 3);
+                    ctx.fill();
+
+                    // closed eye / impact expression
+                    ctx.strokeStyle = '#0f172a';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(4, -71);
+                    ctx.lineTo(10, -67);
+                    ctx.stroke();
+
+                    ctx.restore();
+
+                } else {
+                    // --------------------------------------------------
+                    // BACKWARD FALL
+                    // Torso falls backward while both legs slide FORWARD.
+                    // --------------------------------------------------
+                    const bodyX = renderX - 5;
+                    const bodyY = ground - 12;
+                    const bodyAngle = -0.98;
+
+                    const localHipX = 0;
+                    const localHipY = -3;
+
+                    const hipX =
+                        bodyX +
+                        localHipX * Math.cos(bodyAngle) -
+                        localHipY * Math.sin(bodyAngle);
+
+                    const hipY =
+                        bodyY +
+                        localHipX * Math.sin(bodyAngle) +
+                        localHipY * Math.cos(bodyAngle);
+
+                    // legs extend in front of the body (runner faces right)
+                    drawFallLeg(
+                        hipX - 2,
+                        hipY + 1,
+                        hipX + 54,
+                        Math.min(ground - 2, hipY + 35),
+                        '#252b33',
+                        '#111827'
+                    );
+
+                    drawFallLeg(
+                        hipX + 3,
+                        hipY + 1,
+                        hipX + 72,
+                        Math.min(ground - 3, hipY + 48),
+                        '#1f252d',
+                        '#111827'
+                    );
+
+                    ctx.save();
+                    ctx.translate(bodyX, bodyY);
+                    ctx.rotate(bodyAngle);
+
+                    // school uniform torso
+                    this.drawSchoolUniformTorso(ctx);
+
+                    // arm thrown outward
+                    this.drawOrganicArm(ctx, -10, -43, -1.05, true, 0.2, 0.0, 0.0);
+
+                    // head
+                    ctx.fillStyle = '#f6c7a8';
+                    ctx.beginPath();
+                    ctx.arc(0, -70, 16, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#d89a78';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    // headband
+                    ctx.fillStyle = '#ef4444';
+                    ctx.beginPath();
+                    ctx.roundRect(-16, -80, 32, 7, 3);
+                    ctx.fill();
+
+                    // dizzy expression
+                    ctx.fillStyle = '#0f172a';
+                    ctx.font = 'bold 12px sans-serif';
+                    ctx.fillText('x', 4, -68);
+
+                    ctx.restore();
+                }
+            }
+
+            drawOrganicArm(ctx, shoulderX, shoulderY, shoulderAngle, isLeftSide, phaseVal, crossAmount = 0, balanceAssist = 0) {
+                const upperArmLen = 17;
+                const forearmLen = 16;
+
+                // Cross-body reach: the balancing arm may come across the torso.
+                const crossShift = (isLeftSide ? 1 : -1) * crossAmount * 13;
+                const shoulderLift = crossAmount * 4;
+
+                const elbowX = shoulderX + Math.sin(shoulderAngle) * upperArmLen + crossShift * 0.45;
+                const elbowY = shoulderY + Math.cos(shoulderAngle) * upperArmLen - shoulderLift;
+
+                const forearmBendOffset = Math.sin(phaseVal * Math.PI) * 0.23;
+
+                // The non-crossing arm opens outward slightly while the crossing arm folds inward.
+                const outwardBalance = balanceAssist * (isLeftSide ? -0.12 : 0.12);
+                const crossingTuck = crossAmount * (isLeftSide ? -0.12 : 0.12);
+
+                const forearmAngle =
+                    shoulderAngle +
+                    (isLeftSide ? 0.75 + forearmBendOffset : -0.75 - forearmBendOffset) +
+                    outwardBalance + crossingTuck;
+
+                const fistX = elbowX + Math.sin(forearmAngle) * forearmLen + crossShift;
+                const fistY = elbowY + Math.cos(forearmAngle) * forearmLen - crossAmount * 5;
+
+                ctx.save();
+                ctx.lineWidth = 7;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                // Gray blazer sleeve
+                ctx.strokeStyle = '#4b5258';
+                ctx.beginPath();
+                ctx.moveTo(shoulderX, shoulderY);
+                ctx.lineTo(elbowX, elbowY);
+                ctx.lineTo(fistX, fistY);
+                ctx.stroke();
+
+                // Dark seam detail near the elbow
+                ctx.strokeStyle = 'rgba(47,53,58,0.55)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(elbowX - 2, elbowY - 1);
+                ctx.lineTo(elbowX + 2, elbowY + 1);
+                ctx.stroke();
+
+                ctx.fillStyle = '#4b5258';
+                ctx.beginPath();
+                ctx.arc(shoulderX, shoulderY, 4.2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Exposed hand
+                ctx.fillStyle = '#f6c7a8';
+                ctx.beginPath();
+                ctx.arc(fistX, fistY, 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#d89a78';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                ctx.restore();
+            }
+
+            drawStraightLeg(ctx, hipX, hipY, swingAngle, legColor, shoeColor) {
+                const legLen = this.straightLegLen;
+                const footX = hipX + Math.sin(swingAngle) * legLen;
+                const footY = Math.min(this.groundY, hipY + Math.cos(swingAngle) * legLen);
+
+                ctx.save();
+                // Slightly thicker during normal walking/running
+                ctx.lineWidth = 10.5;
+                ctx.lineCap = 'round';
+                ctx.strokeStyle = legColor;
+
+                ctx.beginPath();
+                ctx.moveTo(hipX, hipY);
+                ctx.lineTo(footX, footY);
+                ctx.stroke();
+
+                ctx.fillStyle = shoeColor;
+                ctx.beginPath();
+                // Lower shoe so it sits naturally on the foot and touches the ground.
+                ctx.ellipse(footX + 4, footY - 1.2, 11.2, 4.6, -0.05, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = 'rgba(255,255,255,0.24)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(footX + 0.3, footY - 2.0);
+                ctx.lineTo(footX + 8.7, footY - 2.0);
+                ctx.stroke();
+
+                ctx.restore();
+            }
+        }
+
+        const particles = [];
+        class DustParticle {
+            constructor(x, y, vx, vy) {
+                this.x = x;
+                this.y = y;
+                this.vx = vx;
+                this.vy = vy;
+                this.size = Math.random() * 6 + 4;
+                this.alpha = 1;
+                this.color = Math.random() > 0.4 ? '#86efac' : '#f8fafc';
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vy += 0.03;
+                this.size *= 0.96;
+                this.alpha -= 0.022;
+            }
+
+            draw(ctx, cameraX) {
+                ctx.save();
+                ctx.translate(this.x - cameraX, this.y);
+                ctx.globalAlpha = Math.max(0, this.alpha);
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(0, 0, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function createDustParticles(x, y, count = 3) {
+            for (let i = 0; i < count; i++) {
+                particles.push(new DustParticle(x + (Math.random() - 0.5) * 15, y - 4, (Math.random() - 0.5) * 3, -Math.random() * 2.5));
+            }
+        }
+
+        // ------------------------------------------------------------
+        // Field Power-ups
+        // Every second while playing: 10% chance to spawn one item.
+        // If an item spawns, type is chosen 50:50.
+        // ------------------------------------------------------------
+        const powerups = [];
+        let lastPowerupRollAt = performance.now();
+
+        class PowerUpItem {
+            constructor(type, x) {
+                this.type = type; // 'speed' | 'stability'
+                this.x = x;
+                this.createdAt = performance.now();
+                this.floatPhase = Math.random() * Math.PI * 2;
+                this.collected = false;
+            }
+
+            update(now) {
+                if (this.collected) return false;
+
+                // Pick up when the runner reaches the item's world position.
+                if (gameState === 'PLAYING' && Math.abs(this.x - runner.x) < 27) {
+                    this.collected = true;
+                    runner.activatePowerup(this.type);
+                    playSound('pickup');
+                    createDustParticles(this.x, runner.groundY - 30, 12);
+                    return false;
+                }
+
+                // Remove old items after they have passed well behind the player.
+                if (this.x < runner.x - 220 || now - this.createdAt > 22000) {
+                    return false;
+                }
+
+                return true;
+            }
+
+            draw(ctx, cameraX, now) {
+                const screenX = this.x - cameraX;
+                if (screenX < -70 || screenX > width + 70) return;
+
+                const bob = Math.sin(now * 0.004 + this.floatPhase) * 4;
+                const y = runner.groundY - 31 + bob;
+
+                ctx.save();
+                ctx.translate(screenX, y);
+
+                // Soft collectible glow
+                const glow = ctx.createRadialGradient(0, 0, 3, 0, 0, 34);
+                if (this.type === 'speed') {
+                    glow.addColorStop(0, 'rgba(125, 211, 252, 0.72)');
+                    glow.addColorStop(1, 'rgba(56, 189, 248, 0)');
+                } else {
+                    glow.addColorStop(0, 'rgba(110, 231, 183, 0.72)');
+                    glow.addColorStop(1, 'rgba(16, 185, 129, 0)');
+                }
+                ctx.fillStyle = glow;
+                ctx.beginPath();
+                ctx.arc(0, 0, 34, 0, Math.PI * 2);
+                ctx.fill();
+
+                // White item plate
+                ctx.fillStyle = 'rgba(255,255,255,0.92)';
+                ctx.strokeStyle = this.type === 'speed' ? '#0ea5e9' : '#10b981';
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                ctx.arc(0, 0, 23, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                if (this.type === 'speed') {
+                    this.drawShoe(ctx);
+                } else {
+                    this.drawEnergyDrink(ctx);
+                }
+
+                ctx.restore();
+            }
+
+            drawShoe(ctx) {
+                // Stylized running shoe
+                ctx.save();
+                ctx.translate(-1, 2);
+
+                ctx.fillStyle = '#0284c7';
+                ctx.strokeStyle = '#075985';
+                ctx.lineWidth = 1.8;
+                ctx.beginPath();
+                ctx.moveTo(-15, -2);
+                ctx.lineTo(-6, -11);
+                ctx.lineTo(0, -10);
+                ctx.lineTo(4, -3);
+                ctx.lineTo(15, 1);
+                ctx.quadraticCurveTo(18, 3, 15, 7);
+                ctx.lineTo(-9, 7);
+                ctx.quadraticCurveTo(-16, 6, -15, -2);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Sole
+                ctx.strokeStyle = '#e0f2fe';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(-12, 6);
+                ctx.lineTo(15, 6);
+                ctx.stroke();
+
+                // Laces
+                ctx.strokeStyle = '#f8fafc';
+                ctx.lineWidth = 1.5;
+                for (let i = 0; i < 3; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(-5 + i * 3, -6 + i);
+                    ctx.lineTo(1 + i * 3, -5 + i);
+                    ctx.stroke();
+                }
+
+                // Speed lines
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(-20, -4);
+                ctx.lineTo(-14, -4);
+                ctx.moveTo(-21, 2);
+                ctx.lineTo(-13, 2);
+                ctx.stroke();
+
+                ctx.restore();
+            }
+
+            drawEnergyDrink(ctx) {
+                // Stylized energy drink can
+                ctx.save();
+
+                ctx.fillStyle = '#10b981';
+                ctx.strokeStyle = '#047857';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(-9, -15, 18, 30, 5);
+                ctx.fill();
+                ctx.stroke();
+
+                // Can top
+                ctx.fillStyle = '#d1fae5';
+                ctx.fillRect(-6, -14, 12, 3);
+
+                // Lightning symbol
+                ctx.fillStyle = '#fef08a';
+                ctx.beginPath();
+                ctx.moveTo(2, -10);
+                ctx.lineTo(-5, 1);
+                ctx.lineTo(0, 1);
+                ctx.lineTo(-3, 10);
+                ctx.lineTo(7, -3);
+                ctx.lineTo(2, -3);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+        function spawnPowerup() {
+            if (powerups.length >= 3) return;
+
+            // Spawn ahead of the runner so it naturally approaches on the field.
+            const minAhead = Math.max(230, width * 0.38);
+            const extraAhead = Math.max(180, width * 0.34);
+            const spawnX = runner.x + minAhead + Math.random() * extraAhead;
+            const type = Math.random() < 0.5 ? 'speed' : 'stability';
+
+            powerups.push(new PowerUpItem(type, spawnX));
+        }
+
+        function updatePowerups(now) {
+            if (gameState === 'PLAYING' && now - lastPowerupRollAt >= 1000) {
+                // Exactly one 10% spawn roll per elapsed second.
+                lastPowerupRollAt = now;
+
+                if (Math.random() < 0.10) {
+                    spawnPowerup();
+                }
+            }
+
+            for (let i = powerups.length - 1; i >= 0; i--) {
+                if (!powerups[i].update(now)) {
+                    powerups.splice(i, 1);
+                }
+            }
+        }
+
+        function drawPowerupEffects(ctx, cameraX, now) {
+            const renderX = runner.x - cameraX;
+
+            // Speed shoe effect: horizontal cyan streaks behind runner.
+            if (runner.hasSpeedBoost()) {
+                ctx.save();
+                ctx.globalAlpha = 0.62;
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineCap = 'round';
+
+                for (let i = 0; i < 6; i++) {
+                    const phase = (now * 0.22 + i * 23) % 70;
+                    const y = runner.groundY - 22 - i * 12;
+                    const x2 = renderX - 20 - phase;
+                    ctx.lineWidth = i % 2 === 0 ? 3 : 2;
+                    ctx.beginPath();
+                    ctx.moveTo(x2, y);
+                    ctx.lineTo(x2 - 22 - i * 3, y);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+
+            // Stability drink effect: calm green ring around the runner.
+            if (runner.hasStabilityBoost()) {
+                const pulse = 1 + Math.sin(now * 0.007) * 0.05;
+
+                ctx.save();
+                ctx.globalAlpha = 0.42;
+                ctx.strokeStyle = '#6ee7b7';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.ellipse(
+                    renderX,
+                    runner.groundY - 52,
+                    39 * pulse,
+                    57 * pulse,
+                    0,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.stroke();
+
+                ctx.globalAlpha = 0.16;
+                ctx.fillStyle = '#34d399';
+                ctx.beginPath();
+                ctx.ellipse(
+                    renderX,
+                    runner.groundY - 52,
+                    35 * pulse,
+                    53 * pulse,
+                    0,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        const runner = new Runner();
+
+        function drawMountainBackground(cameraX, alpha = 1) {
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+
+            const groundY = height - 120;
+
+            // ------------------------------------------------------------
+            // Dynamic day/night cycle based on distance.
+            // 0.00 = noon, 0.25 = sunset, 0.50 = midnight,
+            // 0.75 = sunrise, 1.00 = noon again.
+            // One full cycle = 180 m.
+            // ------------------------------------------------------------
+            const distanceMeters = Math.max(0, (runner.x - 180) / 80);
+            const cycleMeters = 180;
+            const dayPhase = (distanceMeters % cycleMeters) / cycleMeters;
+
+            function clamp(v, min = 0, max = 1) {
+                return Math.max(min, Math.min(max, v));
+            }
+
+            function mix(a, b, t) {
+                return a + (b - a) * t;
+            }
+
+            function mixColor(c1, c2, t) {
+                const a = c1.match(/\w\w/g).map(v => parseInt(v, 16));
+                const b = c2.match(/\w\w/g).map(v => parseInt(v, 16));
+                const r = Math.round(mix(a[0], b[0], t));
+                const g = Math.round(mix(a[1], b[1], t));
+                const bl = Math.round(mix(a[2], b[2], t));
+                return `rgb(${r}, ${g}, ${bl})`;
+            }
+
+            function phaseBlend(phase, a, b, c, d, e) {
+                if (phase < 0.25) return mixColor(a, b, phase / 0.25);
+                if (phase < 0.50) return mixColor(b, c, (phase - 0.25) / 0.25);
+                if (phase < 0.75) return mixColor(c, d, (phase - 0.50) / 0.25);
+                return mixColor(d, e, (phase - 0.75) / 0.25);
+            }
+
+            // Noon -> sunset -> midnight -> sunrise -> noon
+            const skyTop = phaseBlend(
+                dayPhase,
+                '#38bdf8', // noon
+                '#fb7185', // sunset
+                '#020617', // midnight
+                '#f97316', // sunrise
+                '#38bdf8'  // noon
+            );
+
+            const skyBottom = phaseBlend(
+                dayPhase,
+                '#e0f2fe',
+                '#fdba74',
+                '#172554',
+                '#fde68a',
+                '#e0f2fe'
+            );
+
+            const terrainTint = phaseBlend(
+                dayPhase,
+                '#22c55e',
+                '#3f8f56',
+                '#123524',
+                '#4c956c',
+                '#22c55e'
+            );
+
+            const forestTint = phaseBlend(
+                dayPhase,
+                '#15803d',
+                '#355e3b',
+                '#0f2f1f',
+                '#356b47',
+                '#15803d'
+            );
+
+            // 1) Sky
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, groundY);
+            skyGrad.addColorStop(0, skyTop);
+            skyGrad.addColorStop(1, skyBottom);
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, width, height);
+
+            // Daylight factor for environment brightness.
+            // 1 around noon, 0 around midnight.
+            const daylight = (Math.cos(dayPhase * Math.PI * 2) + 1) / 2;
+
+            // 2) Sun / Moon movement
+            // Noon starts high, sunset goes down, night hidden, sunrise comes back.
+            const celestialX = width * (0.18 + dayPhase * 0.64);
+            const sunHeight = Math.cos(dayPhase * Math.PI * 2);
+            const celestialY = groundY * (0.55 - sunHeight * 0.33);
+
+            // Sun visibility around daytime and twilight.
+            const sunVisibility =
+                dayPhase < 0.34
+                    ? clamp(1 - Math.max(0, dayPhase - 0.20) / 0.14)
+                    : dayPhase > 0.66
+                        ? clamp((dayPhase - 0.66) / 0.14)
+                        : 0;
+
+            if (sunVisibility > 0.01) {
+                ctx.save();
+                ctx.globalAlpha = sunVisibility;
+
+                const sunGlow = ctx.createRadialGradient(
+                    celestialX, celestialY, 4,
+                    celestialX, celestialY, 80
+                );
+                sunGlow.addColorStop(0, 'rgba(255, 251, 191, 1)');
+                sunGlow.addColorStop(0.32, 'rgba(254, 240, 138, 0.55)');
+                sunGlow.addColorStop(1, 'rgba(254, 240, 138, 0)');
+                ctx.fillStyle = sunGlow;
+                ctx.beginPath();
+                ctx.arc(celestialX, celestialY, 80, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#fef3c7';
+                ctx.beginPath();
+                ctx.arc(celestialX, celestialY, 23, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // Moon appears at night and moves in the opposite arc.
+            const moonVisibility = clamp(1 - daylight * 1.35);
+            if (moonVisibility > 0.01) {
+                const moonPhaseT = clamp((dayPhase - 0.34) / 0.32);
+                const moonX = width * (0.22 + moonPhaseT * 0.56);
+                const moonArc = Math.sin(moonPhaseT * Math.PI);
+                const moonY = groundY * (0.52 - moonArc * 0.30);
+
+                ctx.save();
+                ctx.globalAlpha = moonVisibility;
+                ctx.fillStyle = '#f8fafc';
+                ctx.beginPath();
+                ctx.arc(moonX, moonY, 18, 0, Math.PI * 2);
+                ctx.fill();
+
+                // crescent cutout
+                ctx.fillStyle = skyTop;
+                ctx.beginPath();
+                ctx.arc(moonX + 7, moonY - 4, 17, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // 3) Stars only during night
+            const starAlpha = clamp((1 - daylight) * 1.45);
+            if (starAlpha > 0.02) {
+                ctx.save();
+                ctx.globalAlpha = starAlpha;
+                ctx.fillStyle = '#ffffff';
+
+                for (let i = 0; i < 58; i++) {
+                    const sx = ((i * 137.5 + cameraX * 0.015) % (width + 80)) - 40;
+                    const sy = 24 + ((i * 83) % Math.max(80, groundY * 0.52));
+                    const twinkle = 0.8 + Math.sin(i * 4.1 + distanceMeters * 0.09) * 0.2;
+                    const radius = (i % 5 === 0 ? 1.7 : 1.05) * twinkle;
+
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+
+            // 4) Soft moving clouds - visibility changes with light
+            ctx.save();
+            ctx.globalAlpha = mix(0.25, 0.82, daylight);
+            ctx.fillStyle = daylight > 0.3 ? '#ffffff' : '#94a3b8';
+
+            for (let i = -1; i < 7; i++) {
+                const wrap = width + 360;
+                let cloudX = ((i * 260 - cameraX * 0.07) % wrap + wrap) % wrap - 150;
+                const cloudY = 55 + (i % 3) * 48;
+
+                ctx.beginPath();
+                ctx.arc(cloudX, cloudY, 26, 0, Math.PI * 2);
+                ctx.arc(cloudX + 24, cloudY - 10, 34, 0, Math.PI * 2);
+                ctx.arc(cloudX + 58, cloudY, 28, 0, Math.PI * 2);
+                ctx.arc(cloudX + 82, cloudY + 2, 20, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+
+            // 5) Far mountains
+            ctx.fillStyle = phaseBlend(
+                dayPhase,
+                '#94a3b8',
+                '#7c6f7f',
+                '#1e293b',
+                '#64748b',
+                '#94a3b8'
+            );
+            ctx.globalAlpha = mix(0.45, 0.28, daylight);
+            ctx.beginPath();
+            ctx.moveTo(0, groundY);
+            for (let x = -40; x <= width + 80; x += 36) {
+                const wx = x + cameraX * 0.12;
+                const mountain =
+                    Math.sin(wx * 0.006) * 42 +
+                    Math.sin(wx * 0.0024 + 1.4) * 62;
+                ctx.lineTo(x, groundY - 185 - mountain);
+            }
+            ctx.lineTo(width, groundY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.globalAlpha = 1;
+
+            // 6) Distant green hills
+            const hillGrad = ctx.createLinearGradient(0, groundY - 180, 0, groundY);
+            hillGrad.addColorStop(0, phaseBlend(dayPhase, '#86efac', '#7aa36b', '#1c3d2b', '#8fbf78', '#86efac'));
+            hillGrad.addColorStop(1, terrainTint);
+            ctx.fillStyle = hillGrad;
+            ctx.beginPath();
+            ctx.moveTo(0, groundY + 10);
+            for (let x = -40; x <= width + 80; x += 28) {
+                const wx = x + cameraX * 0.24;
+                const hill =
+                    Math.sin(wx * 0.0045) * 34 +
+                    Math.sin(wx * 0.0018 + 0.8) * 28;
+                ctx.lineTo(x, groundY - 95 - hill);
+            }
+            ctx.lineTo(width, groundY + 10);
+            ctx.closePath();
+            ctx.fill();
+
+            // 7) Mid-distance forest line
+            const forestSpacing = 78;
+            const forestOffset = -((cameraX * 0.42) % forestSpacing);
+            for (let i = -2; i < Math.ceil(width / forestSpacing) + 3; i++) {
+                const x = i * forestSpacing + forestOffset;
+                const seed = i + Math.floor(cameraX * 0.42 / forestSpacing);
+                const heightVar = 42 + Math.abs(Math.sin(seed * 12.9898)) * 45;
+                const trunkY = groundY - 58;
+
+                ctx.fillStyle = phaseBlend(dayPhase, '#7c5a3c', '#6b4b3a', '#3f2f2b', '#6b4b3a', '#7c5a3c');
+                ctx.fillRect(x - 3, trunkY - heightVar * 0.25, 6, heightVar * 0.45);
+
+                ctx.fillStyle = forestTint;
+
+                // Draw each foliage circle separately.
+                // This prevents Canvas from connecting arcs with diagonal lines,
+                // which caused the triangular-looking holes in the canopy.
+                ctx.beginPath();
+                ctx.arc(x, trunkY - heightVar * 0.46, heightVar * 0.29, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(x - heightVar * 0.19, trunkY - heightVar * 0.32, heightVar * 0.23, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(x + heightVar * 0.19, trunkY - heightVar * 0.32, heightVar * 0.23, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Extra lower-center foliage to close any remaining gap.
+                ctx.beginPath();
+                ctx.arc(x, trunkY - heightVar * 0.27, heightVar * 0.20, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // 8) Main meadow
+            const grassGrad = ctx.createLinearGradient(0, groundY, 0, height);
+            grassGrad.addColorStop(0, terrainTint);
+            grassGrad.addColorStop(1, phaseBlend(dayPhase, '#15803d', '#315b39', '#0b2618', '#315b39', '#15803d'));
+            ctx.fillStyle = grassGrad;
+            ctx.fillRect(0, groundY, width, height - groundY);
+
+            // 9) Nearby bushes - stronger parallax
+            const bushSpacing = 170;
+            const bushOffset = -((cameraX * 0.72) % bushSpacing);
+            for (let i = -2; i < Math.ceil(width / bushSpacing) + 3; i++) {
+                const x = i * bushSpacing + bushOffset;
+                const seed = i + Math.floor(cameraX * 0.72 / bushSpacing);
+                const size = 18 + Math.abs(Math.sin(seed * 7.31)) * 17;
+                const y = groundY + 11;
+
+                ctx.fillStyle = phaseBlend(dayPhase, '#166534', '#355536', '#0b2618', '#355536', '#166534');
+                ctx.beginPath();
+                ctx.arc(x, y, size, Math.PI, 0);
+                ctx.arc(x + size * 0.8, y, size * 0.8, Math.PI, 0);
+                ctx.fill();
+            }
+
+            // 10) Foreground grass blades and flowers
+            const bladeSpacing = 18;
+            const bladeOffset = -((cameraX * 0.95) % bladeSpacing);
+            ctx.strokeStyle = phaseBlend(dayPhase, '#166534', '#31513a', '#0a2015', '#31513a', '#166534');
+            ctx.lineWidth = 1.5;
+
+            for (let i = -2; i < Math.ceil(width / bladeSpacing) + 3; i++) {
+                const x = i * bladeSpacing + bladeOffset;
+                const seed = i + Math.floor(cameraX * 0.95 / bladeSpacing);
+                const h = 8 + Math.abs(Math.sin(seed * 4.7)) * 15;
+
+                ctx.beginPath();
+                ctx.moveTo(x, groundY + 28);
+                ctx.quadraticCurveTo(x - 4, groundY + 15, x + 1, groundY + 28 - h);
+                ctx.stroke();
+
+                if (seed % 7 === 0 && daylight > 0.18) {
+                    ctx.save();
+                    ctx.globalAlpha = mix(0.25, 1, daylight);
+                    ctx.fillStyle = seed % 14 === 0 ? '#fef08a' : '#f9a8d4';
+                    ctx.beginPath();
+                    ctx.arc(x + 1, groundY + 28 - h, 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+
+            // 11) Subtle dirt trail under the runner
+            const trailY = groundY + 18;
+            const trailGrad = ctx.createLinearGradient(0, trailY, 0, height);
+            trailGrad.addColorStop(0, `rgba(217, 180, 126, ${0.10 + daylight * 0.16})`);
+            trailGrad.addColorStop(1, `rgba(180, 138, 89, ${0.04 + daylight * 0.06})`);
+            ctx.fillStyle = trailGrad;
+            ctx.beginPath();
+            ctx.moveTo(0, trailY);
+            ctx.quadraticCurveTo(width * 0.5, trailY + 16, width, trailY + 6);
+            ctx.lineTo(width, height);
+            ctx.lineTo(0, height);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+
+        function drawBackground(cameraX) {
+            const groundY = height - 120;
+
+            // ------------------------------------------------------------
+            // Dynamic day/night cycle based on distance.
+            // 0.00 = noon, 0.25 = sunset, 0.50 = midnight,
+            // 0.75 = sunrise, 1.00 = noon again.
+            // One full cycle = 180 m.
+            // ------------------------------------------------------------
+            const distanceMeters = Math.max(0, (runner.x - 180) / 80);
+            const cycleMeters = 180;
+            const dayPhase = (distanceMeters % cycleMeters) / cycleMeters;
+
+            // Background transition:
+            // 0~80m = mountain/nature,
+            // 80~120m = smooth mountain -> city blend,
+            // 100m = midpoint,
+            // 120m+ = full city.
+            const transitionStart = 80;
+            const transitionEnd = 120;
+            const rawCityBlend = Math.max(
+                0,
+                Math.min(1, (distanceMeters - transitionStart) / (transitionEnd - transitionStart))
+            );
+            const cityBlend = rawCityBlend * rawCityBlend * (3 - 2 * rawCityBlend);
+
+            if (cityBlend < 1) {
+                drawMountainBackground(cameraX, 1 - cityBlend);
+            }
+
+            ctx.save();
+            ctx.globalAlpha *= cityBlend;
+
+            function clamp(v, min = 0, max = 1) {
+                return Math.max(min, Math.min(max, v));
+            }
+
+            function mix(a, b, t) {
+                return a + (b - a) * t;
+            }
+
+            function mixColor(c1, c2, t) {
+                const a = c1.match(/\w\w/g).map(v => parseInt(v, 16));
+                const b = c2.match(/\w\w/g).map(v => parseInt(v, 16));
+                const r = Math.round(mix(a[0], b[0], t));
+                const g = Math.round(mix(a[1], b[1], t));
+                const bl = Math.round(mix(a[2], b[2], t));
+                return `rgb(${r}, ${g}, ${bl})`;
+            }
+
+            function phaseBlend(phase, a, b, c, d, e) {
+                if (phase < 0.25) return mixColor(a, b, phase / 0.25);
+                if (phase < 0.50) return mixColor(b, c, (phase - 0.25) / 0.25);
+                if (phase < 0.75) return mixColor(c, d, (phase - 0.50) / 0.25);
+                return mixColor(d, e, (phase - 0.75) / 0.25);
+            }
+
+            function seedWave(n) {
+                return Math.abs(Math.sin(n * 12.9898 + 78.233));
+            }
+
+            // Urban sky tones
+            const skyTop = phaseBlend(
+                dayPhase,
+                '#60a5fa', // noon
+                '#fb7185', // sunset
+                '#020617', // midnight
+                '#fb923c', // sunrise
+                '#60a5fa'
+            );
+
+            const skyBottom = phaseBlend(
+                dayPhase,
+                '#dbeafe',
+                '#fdba74',
+                '#172554',
+                '#fde68a',
+                '#dbeafe'
+            );
+
+            // Daylight factor for environment brightness.
+            const daylight = (Math.cos(dayPhase * Math.PI * 2) + 1) / 2;
+
+            // 1) Sky
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, groundY);
+            skyGrad.addColorStop(0, skyTop);
+            skyGrad.addColorStop(1, skyBottom);
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, width, height);
+
+            // 2) Sun / Moon
+            const celestialX = width * (0.18 + dayPhase * 0.64);
+            const sunHeight = Math.cos(dayPhase * Math.PI * 2);
+            const celestialY = groundY * (0.54 - sunHeight * 0.31);
+
+            const sunVisibility =
+                dayPhase < 0.34
+                    ? clamp(1 - Math.max(0, dayPhase - 0.20) / 0.14)
+                    : dayPhase > 0.66
+                        ? clamp((dayPhase - 0.66) / 0.14)
+                        : 0;
+
+            if (sunVisibility > 0.01) {
+                ctx.save();
+                ctx.globalAlpha *= sunVisibility;
+
+                const sunGlow = ctx.createRadialGradient(
+                    celestialX, celestialY, 4,
+                    celestialX, celestialY, 85
+                );
+                sunGlow.addColorStop(0, 'rgba(255, 251, 191, 1)');
+                sunGlow.addColorStop(0.35, 'rgba(254, 240, 138, 0.55)');
+                sunGlow.addColorStop(1, 'rgba(254, 240, 138, 0)');
+                ctx.fillStyle = sunGlow;
+                ctx.beginPath();
+                ctx.arc(celestialX, celestialY, 85, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#fef3c7';
+                ctx.beginPath();
+                ctx.arc(celestialX, celestialY, 23, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            const moonVisibility = clamp(1 - daylight * 1.35);
+            if (moonVisibility > 0.01) {
+                const moonPhaseT = clamp((dayPhase - 0.34) / 0.32);
+                const moonX = width * (0.22 + moonPhaseT * 0.56);
+                const moonArc = Math.sin(moonPhaseT * Math.PI);
+                const moonY = groundY * (0.52 - moonArc * 0.28);
+
+                ctx.save();
+                ctx.globalAlpha *= moonVisibility;
+                ctx.fillStyle = '#f8fafc';
+                ctx.beginPath();
+                ctx.arc(moonX, moonY, 18, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = skyTop;
+                ctx.beginPath();
+                ctx.arc(moonX + 7, moonY - 4, 17, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // 3) Stars at night
+            const starAlpha = clamp((1 - daylight) * 1.5);
+            if (starAlpha > 0.02) {
+                ctx.save();
+                ctx.globalAlpha *= starAlpha;
+                ctx.fillStyle = '#ffffff';
+
+                for (let i = 0; i < 58; i++) {
+                    const sx = ((i * 137.5 + cameraX * 0.015) % (width + 80)) - 40;
+                    const sy = 24 + ((i * 83) % Math.max(80, groundY * 0.52));
+                    const twinkle = 0.8 + Math.sin(i * 4.1 + distanceMeters * 0.09) * 0.2;
+                    const radius = (i % 5 === 0 ? 1.6 : 1.0) * twinkle;
+
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+
+            // 4) Clouds
+            ctx.save();
+            ctx.globalAlpha *= mix(0.18, 0.78, daylight);
+            ctx.fillStyle = daylight > 0.3 ? '#ffffff' : '#94a3b8';
+
+            for (let i = -1; i < 7; i++) {
+                const wrap = width + 360;
+                let cloudX = ((i * 260 - cameraX * 0.07) % wrap + wrap) % wrap - 150;
+                const cloudY = 55 + (i % 3) * 44;
+
+                ctx.beginPath();
+                ctx.arc(cloudX, cloudY, 24, 0, Math.PI * 2);
+                ctx.arc(cloudX + 22, cloudY - 10, 32, 0, Math.PI * 2);
+                ctx.arc(cloudX + 52, cloudY, 28, 0, Math.PI * 2);
+                ctx.arc(cloudX + 78, cloudY + 1, 18, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+
+            // 5) Far skyline silhouette
+            const farBaseY = groundY - 88;
+
+            // Distant city ground so the rear buildings are not floating.
+            const farGroundGrad = ctx.createLinearGradient(0, farBaseY, 0, groundY - 42);
+            farGroundGrad.addColorStop(0, phaseBlend(dayPhase, '#aab4c2', '#aaa2a4', '#263244', '#aab4c2', '#aab4c2'));
+            farGroundGrad.addColorStop(1, phaseBlend(dayPhase, '#8994a3', '#8f888b', '#1f2937', '#8994a3', '#8994a3'));
+            ctx.fillStyle = farGroundGrad;
+            ctx.fillRect(0, farBaseY, width, (groundY - 42) - farBaseY);
+
+            // distant pavement divisions
+            ctx.strokeStyle = daylight > 0.42 ? 'rgba(71,85,105,0.12)' : 'rgba(226,232,240,0.04)';
+            ctx.lineWidth = 1;
+            const farGroundSpacing = 54;
+            const farGroundOffset = -((cameraX * 0.18) % farGroundSpacing);
+            for (let i = -2; i < Math.ceil(width / farGroundSpacing) + 3; i++) {
+                const gx = i * farGroundSpacing + farGroundOffset;
+                ctx.beginPath();
+                ctx.moveTo(gx, farBaseY);
+                ctx.lineTo(gx, groundY - 42);
+                ctx.stroke();
+            }
+
+            const farSpacing = 54;
+            const farOffset = -((cameraX * 0.18) % farSpacing);
+
+            for (let i = -3; i < Math.ceil(width / farSpacing) + 4; i++) {
+                const x = i * farSpacing + farOffset;
+                const worldI = i + Math.floor(cameraX * 0.18 / farSpacing);
+                const w = 34 + Math.floor(seedWave(worldI * 0.73) * 22);
+                const h = 45 + Math.floor(seedWave(worldI * 1.17 + 1.2) * 75);
+
+                ctx.fillStyle = phaseBlend(dayPhase, '#94a3b8', '#7c6f7f', '#1e293b', '#64748b', '#94a3b8');
+                ctx.fillRect(x, farBaseY - h, w, h);
+
+                // rooftop detail
+                if (worldI % 4 === 0) {
+                    ctx.fillRect(x + w * 0.5 - 1.5, farBaseY - h - 10, 3, 10);
+                }
+
+                // windows at night / dusk - steadily lit, no blinking
+                const windowAlpha = clamp((1 - daylight) * 1.35);
+                if (windowAlpha > 0.05) {
+                    ctx.save();
+                    ctx.globalAlpha *= 0.18 + windowAlpha * 0.48;
+                    ctx.fillStyle = '#fde68a';
+                    for (let wy = farBaseY - h + 8; wy < farBaseY - 8; wy += 12) {
+                        for (let wx = x + 6; wx < x + w - 6; wx += 10) {
+                            ctx.fillRect(wx, wy, 4, 5);
+                        }
+                    }
+                    ctx.restore();
+                }
+            }
+
+            // 6) Mid skyline with more variation (signs / rooftop boxes)
+            const midBaseY = groundY - 42;
+
+            // Mid-distance sidewalk/base directly beneath the closer buildings.
+            ctx.fillStyle = phaseBlend(dayPhase, '#b7c0cb', '#c0b9b7', '#2b3646', '#b7c0cb', '#b7c0cb');
+            ctx.fillRect(0, midBaseY, width, 18);
+            ctx.fillStyle = phaseBlend(dayPhase, '#929dab', '#9b9594', '#202a38', '#929dab', '#929dab');
+            ctx.fillRect(0, midBaseY + 14, width, 5);
+
+            const midSpacing = 88;
+            const midOffset = -((cameraX * 0.34) % midSpacing);
+
+            for (let i = -2; i < Math.ceil(width / midSpacing) + 3; i++) {
+                const x = i * midSpacing + midOffset;
+                const worldI = i + Math.floor(cameraX * 0.34 / midSpacing);
+                const w = 56 + Math.floor(seedWave(worldI * 0.81 + 2.2) * 36);
+                const h = 62 + Math.floor(seedWave(worldI * 1.41 + 0.7) * 92);
+
+                const buildingTop = midBaseY - h;
+                ctx.fillStyle = phaseBlend(dayPhase, '#64748b', '#5b5564', '#111827', '#475569', '#64748b');
+                ctx.fillRect(x, buildingTop, w, h);
+
+                // side shade
+                ctx.fillStyle = phaseBlend(dayPhase, '#475569', '#4b5563', '#0f172a', '#334155', '#475569');
+                ctx.fillRect(x + w * 0.72, buildingTop, w * 0.28, h);
+
+                // rooftop detail / water tank / sign
+                if (worldI % 5 === 0) {
+                    ctx.fillStyle = '#334155';
+                    ctx.fillRect(x + 10, buildingTop - 12, 18, 12);
+                } else if (worldI % 5 === 2) {
+                    ctx.fillStyle = phaseBlend(dayPhase, '#e2e8f0', '#fdba74', '#1f2937', '#fca5a5', '#e2e8f0');
+                    ctx.fillRect(x + 8, buildingTop + 8, 24, 10);
+                }
+
+                // windows - stable lighting with no blinking
+                const nightWindowBoost = 0.14 + clamp((1 - daylight) * 0.78);
+                for (let wy = buildingTop + 10; wy < midBaseY - 12; wy += 13) {
+                    for (let wx = x + 7; wx < x + w - 8; wx += 12) {
+                        if (daylight > 0.45) {
+                            ctx.fillStyle = 'rgba(226,232,240,0.20)';
+                        } else {
+                            ctx.fillStyle = `rgba(253, 230, 138, ${nightWindowBoost})`;
+                        }
+                        ctx.fillRect(wx, wy, 5, 7);
+                    }
+                }
+            }
+
+            // 7) Urban ground under the building side
+            // Back sidewalk / plaza strip so the skyline side does not feel like it's floating.
+            const plazaGrad = ctx.createLinearGradient(0, groundY - 42, 0, groundY - 2);
+            plazaGrad.addColorStop(0, phaseBlend(dayPhase, '#dbe4ee', '#ddd6d3', '#334155', '#dbe4ee', '#dbe4ee'));
+            plazaGrad.addColorStop(1, phaseBlend(dayPhase, '#bfc9d5', '#c7c2bf', '#1f2937', '#bfc9d5', '#bfc9d5'));
+            ctx.fillStyle = plazaGrad;
+            ctx.fillRect(0, groundY - 42, width, 28);
+
+            // subtle tile joints on the building-side ground
+            ctx.strokeStyle = daylight > 0.42 ? 'rgba(100,116,139,0.18)' : 'rgba(226,232,240,0.06)';
+            ctx.lineWidth = 1;
+            const plazaTileSpacing = 38;
+            const plazaOffset = -((cameraX * 0.42) % plazaTileSpacing);
+            for (let i = -2; i < Math.ceil(width / plazaTileSpacing) + 3; i++) {
+                const x = i * plazaTileSpacing + plazaOffset;
+                ctx.beginPath();
+                ctx.moveTo(x, groundY - 42);
+                ctx.lineTo(x, groundY - 14);
+                ctx.stroke();
+            }
+
+            // 7-b) Main sidewalk right in front of the buildings
+            ctx.fillStyle = phaseBlend(dayPhase, '#cbd5e1', '#d1d5db', '#334155', '#cbd5e1', '#cbd5e1');
+            ctx.fillRect(0, groundY - 16, width, 18);
+
+            // curb line
+            ctx.fillStyle = phaseBlend(dayPhase, '#94a3b8', '#9ca3af', '#475569', '#94a3b8', '#94a3b8');
+            ctx.fillRect(0, groundY - 4, width, 6);
+
+            // front curb shadow to separate building-side ground from the road
+            ctx.fillStyle = daylight > 0.45 ? 'rgba(15,23,42,0.10)' : 'rgba(0,0,0,0.18)';
+            ctx.fillRect(0, groundY - 2, width, 4);
+
+            // 8) Foreground road
+            const roadGrad = ctx.createLinearGradient(0, groundY, 0, height);
+            roadGrad.addColorStop(0, phaseBlend(dayPhase, '#6b7280', '#5b5564', '#111827', '#4b5563', '#6b7280'));
+            roadGrad.addColorStop(1, phaseBlend(dayPhase, '#374151', '#2f2b33', '#020617', '#374151', '#374151'));
+            ctx.fillStyle = roadGrad;
+            ctx.fillRect(0, groundY, width, height - groundY);
+
+            // lane stripes
+            const stripeSpacing = 120;
+            const stripeOffset = -((cameraX * 0.95) % stripeSpacing);
+            ctx.fillStyle = phaseBlend(dayPhase, '#f8fafc', '#fef3c7', '#94a3b8', '#fef3c7', '#f8fafc');
+            for (let i = -1; i < Math.ceil(width / stripeSpacing) + 2; i++) {
+                const x = i * stripeSpacing + stripeOffset;
+                ctx.fillRect(x, groundY + 36, 42, 5);
+            }
+
+            // subtle shoulder band
+            ctx.fillStyle = phaseBlend(dayPhase, '#9ca3af', '#a1a1aa', '#1f2937', '#9ca3af', '#9ca3af');
+            ctx.fillRect(0, groundY + 6, width, 8);
+
+            // 9) Streetlights
+            const lampSpacing = 190;
+            const lampOffset = -((cameraX * 0.56) % lampSpacing);
+            for (let i = -2; i < Math.ceil(width / lampSpacing) + 3; i++) {
+                const x = i * lampSpacing + lampOffset;
+                const worldI = i + Math.floor(cameraX * 0.56 / lampSpacing);
+                const lampHeight = 92 + Math.floor(seedWave(worldI * 1.93) * 12);
+
+                ctx.fillStyle = phaseBlend(dayPhase, '#64748b', '#6b7280', '#475569', '#64748b', '#64748b');
+                ctx.fillRect(x, groundY - lampHeight, 5, lampHeight);
+
+                ctx.save();
+                ctx.translate(x + 2.5, groundY - lampHeight + 4);
+                ctx.rotate(-0.12);
+                ctx.fillRect(0, 0, 18, 4);
+                ctx.restore();
+
+                ctx.fillStyle = daylight > 0.42 ? '#e2e8f0' : '#fef3c7';
+                ctx.beginPath();
+                ctx.ellipse(x + 18, groundY - lampHeight + 8, 6, 4, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // night glow
+                if (daylight < 0.5) {
+                    const glowAlpha = (0.55 - daylight) * 0.75;
+                    ctx.save();
+                    ctx.globalAlpha *= glowAlpha;
+                    const glow = ctx.createRadialGradient(x + 18, groundY - lampHeight + 8, 3, x + 18, groundY - lampHeight + 8, 38);
+                    glow.addColorStop(0, 'rgba(254,240,138,0.65)');
+                    glow.addColorStop(1, 'rgba(254,240,138,0)');
+                    ctx.fillStyle = glow;
+                    ctx.beginPath();
+                    ctx.arc(x + 18, groundY - lampHeight + 8, 38, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+
+            // 10) Foreground city variation: trees, bus stops, benches, signboards
+            // All objects now use the sidewalk surface as their true ground anchor,
+            // so nothing appears to float above the pavement.
+            const streetSpacing = 230;
+            const streetOffset = -((cameraX * 0.82) % streetSpacing);
+            const propGroundY = groundY - 14;   // top surface of the sidewalk
+            const propScale = 1.71;             // ~50% larger than the previous 1.14 scale
+
+            for (let i = -2; i < Math.ceil(width / streetSpacing) + 3; i++) {
+                const x = i * streetSpacing + streetOffset;
+                const worldI = i + Math.floor(cameraX * 0.82 / streetSpacing);
+                const variant = ((worldI % 4) + 4) % 4;
+
+                ctx.save();
+                ctx.translate(x, propGroundY);
+                ctx.scale(propScale, propScale);
+
+                if (variant === 0) {
+                    // Street tree
+                    // planter bottom rests exactly on y = 0
+                    ctx.fillStyle = '#475569';
+                    ctx.fillRect(-23, -10, 46, 10);
+
+                    // trunk starts from planter surface
+                    ctx.fillStyle = '#7c5a3c';
+                    ctx.fillRect(-4, -61, 8, 51);
+
+                    // crown
+                    // Add extra overlapping foliage circles so no hole appears.
+                    ctx.fillStyle = phaseBlend(
+                        dayPhase,
+                        '#16a34a',
+                        '#3f8f56',
+                        '#163d2b',
+                        '#4c956c',
+                        '#16a34a'
+                    );
+                    ctx.beginPath();
+                    ctx.arc(0, -80, 30, 0, Math.PI * 2);
+                    ctx.arc(-22, -70, 21, 0, Math.PI * 2);
+                    ctx.arc(22, -70, 21, 0, Math.PI * 2);
+                    ctx.arc(-8, -62, 16, 0, Math.PI * 2);
+                    ctx.arc(10, -60, 17, 0, Math.PI * 2);
+                    ctx.arc(9, -87, 12, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // subtle contact shadow
+                    ctx.fillStyle = 'rgba(15,23,42,0.16)';
+                    ctx.beginPath();
+                    ctx.ellipse(0, 1, 26, 4, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                } else if (variant === 1) {
+                    // Bus stop
+                    // support posts terminate exactly at sidewalk surface
+                    ctx.fillStyle = '#64748b';
+                    ctx.fillRect(-35, -67, 5, 67);
+                    ctx.fillRect(30, -67, 5, 67);
+
+                    // roof
+                    ctx.fillRect(-40, -74, 80, 7);
+
+                    // rear glass
+                    ctx.fillStyle = 'rgba(226,232,240,0.55)';
+                    ctx.fillRect(-29, -63, 53, 47);
+
+                    // bench inside
+                    ctx.fillStyle = '#7c5a3c';
+                    ctx.fillRect(-23, -24, 40, 6);
+                    ctx.fillRect(-20, -18, 5, 18);
+                    ctx.fillRect(11, -18, 5, 18);
+
+                    // bus stop sign
+                    ctx.fillStyle = phaseBlend(
+                        dayPhase,
+                        '#0ea5e9',
+                        '#fb7185',
+                        '#1d4ed8',
+                        '#f59e0b',
+                        '#0ea5e9'
+                    );
+                    ctx.fillRect(-36, -88, 32, 14);
+
+                    // base shadow
+                    ctx.fillStyle = 'rgba(15,23,42,0.14)';
+                    ctx.fillRect(-39, 0, 78, 4);
+
+                } else if (variant === 2) {
+                    // Bench
+                    // feet end exactly at y = 0
+                    ctx.fillStyle = '#7c5a3c';
+                    ctx.fillRect(-31, -31, 62, 7);  // seat
+                    ctx.fillRect(-31, -46, 62, 7);  // backrest
+                    ctx.fillRect(-25, -24, 5, 24);  // left leg
+                    ctx.fillRect(20, -24, 5, 24);   // right leg
+
+                    // sign behind bench
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.fillRect(42, -60, 5, 60);
+
+                    ctx.fillStyle = phaseBlend(
+                        dayPhase,
+                        '#fbbf24',
+                        '#fb7185',
+                        '#334155',
+                        '#f59e0b',
+                        '#fbbf24'
+                    );
+                    ctx.fillRect(27, -79, 35, 18);
+
+                    // ground contact shadow
+                    ctx.fillStyle = 'rgba(15,23,42,0.15)';
+                    ctx.beginPath();
+                    ctx.ellipse(0, 1, 35, 4, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                } else {
+                    // Kiosk / street stall
+                    // body bottom is exactly at sidewalk surface
+                    ctx.fillStyle = phaseBlend(
+                        dayPhase,
+                        '#475569',
+                        '#5b5564',
+                        '#1f2937',
+                        '#475569',
+                        '#475569'
+                    );
+                    ctx.fillRect(-39, -64, 78, 64);
+
+                    // service window
+                    ctx.fillStyle = phaseBlend(
+                        dayPhase,
+                        '#f8fafc',
+                        '#fef3c7',
+                        '#475569',
+                        '#f8fafc',
+                        '#f8fafc'
+                    );
+                    ctx.fillRect(-30, -53, 60, 27);
+
+                    // awning / top sign
+                    ctx.fillStyle = phaseBlend(
+                        dayPhase,
+                        '#ef4444',
+                        '#fb7185',
+                        '#111827',
+                        '#f59e0b',
+                        '#ef4444'
+                    );
+                    ctx.fillRect(-45, -78, 90, 15);
+
+                    // counter
+                    ctx.fillStyle = '#334155';
+                    ctx.fillRect(-32, -25, 64, 7);
+
+                    // base shadow
+                    ctx.fillStyle = 'rgba(15,23,42,0.18)';
+                    ctx.fillRect(-42, 0, 84, 4);
+                }
+
+                ctx.restore();
+            }
+
+            // 11) Small road texture
+            const textureSpacing = 28;
+            const textureOffset = -((cameraX * 1.0) % textureSpacing);
+            ctx.strokeStyle = daylight > 0.4 ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.03)';
+            ctx.lineWidth = 1;
+            for (let i = -2; i < Math.ceil(width / textureSpacing) + 3; i++) {
+                const x = i * textureSpacing + textureOffset;
+                ctx.beginPath();
+                ctx.moveTo(x, groundY + 54);
+                ctx.lineTo(x + 7, groundY + 56);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        // ------------------------------------------------------------
+        // Foreground city traffic
+        // Drawn after the runner so cars/buses correctly pass in front
+        // whenever their screen positions overlap.
+        // ------------------------------------------------------------
+
+        function drawGoalHouse(cameraX) {
+            const houseScale = 1.18;
+            const scaledHouseWidth = GOAL_HOUSE_WIDTH * houseScale;
+            const scaledHouseHeight = GOAL_HOUSE_HEIGHT * houseScale;
+
+            const houseLeftX = GOAL_WORLD_X - scaledHouseWidth * 0.5;
+            const screenX = houseLeftX - cameraX;
+            const groundY = height - 120;
+
+            // Place the house on the background-side ground/sidewalk so it reads as
+            // part of the scenery, not a floating overlay object.
+            const houseBaseY = groundY - 18;
+
+            // Skip when well off screen
+            if (screenX > width + 260 || screenX + scaledHouseWidth < -260) return;
+
+            const distanceMeters = Math.max(0, (runner.x - 180) / 80);
+            const cycleMeters = 180;
+            const dayPhase = (distanceMeters % cycleMeters) / cycleMeters;
+            const daylight = (Math.cos(dayPhase * Math.PI * 2) + 1) / 2;
+
+            // House appears mainly in the city section; fade it in naturally.
+            const cityBlendRaw = Math.max(0, Math.min(1, (distanceMeters - 80) / 40));
+            const cityBlend = cityBlendRaw * cityBlendRaw * (3 - 2 * cityBlendRaw);
+
+            ctx.save();
+            ctx.globalAlpha *= Math.max(0.45, cityBlend);
+
+            // destination ground pad
+            ctx.fillStyle = daylight > 0.45 ? '#dbe4ee' : '#475569';
+            ctx.fillRect(screenX - 24, houseBaseY - 4, scaledHouseWidth + 48, 12);
+
+            // contact shadow
+            ctx.fillStyle = 'rgba(15,23,42,0.16)';
+            ctx.beginPath();
+            ctx.ellipse(
+                screenX + scaledHouseWidth * 0.5,
+                houseBaseY + 2,
+                scaledHouseWidth * 0.62,
+                8,
+                0,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
+
+            // small yard strip
+            ctx.fillStyle = daylight > 0.45 ? '#7ac77e' : '#355a3d';
+            ctx.fillRect(screenX - 6, houseBaseY - 10, scaledHouseWidth + 12, 7);
+
+            // main body
+            ctx.fillStyle = '#f5efe6';
+            ctx.strokeStyle = '#a16207';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(
+                screenX + 12,
+                houseBaseY - scaledHouseHeight + 32,
+                scaledHouseWidth - 24,
+                scaledHouseHeight - 32,
+                9
+            );
+            ctx.fill();
+            ctx.stroke();
+
+            // roof
+            ctx.fillStyle = '#b45309';
+            ctx.beginPath();
+            ctx.moveTo(screenX, houseBaseY - scaledHouseHeight + 42);
+            ctx.lineTo(screenX + scaledHouseWidth * 0.5, houseBaseY - scaledHouseHeight);
+            ctx.lineTo(screenX + scaledHouseWidth, houseBaseY - scaledHouseHeight + 42);
+            ctx.closePath();
+            ctx.fill();
+
+            // chimney
+            ctx.fillStyle = '#92400e';
+            ctx.fillRect(screenX + scaledHouseWidth - 40, houseBaseY - scaledHouseHeight + 12, 13, 26);
+
+            // door
+            ctx.fillStyle = '#7c2d12';
+            ctx.beginPath();
+            ctx.roundRect(screenX + scaledHouseWidth * 0.5 - 15, houseBaseY - 44, 30, 44, 6);
+            ctx.fill();
+
+            // windows
+            const windowGlow = daylight > 0.45 ? '#dbeafe' : '#fde68a';
+            ctx.fillStyle = windowGlow;
+            ctx.fillRect(screenX + 26, houseBaseY - 74, 24, 21);
+            ctx.fillRect(screenX + scaledHouseWidth - 50, houseBaseY - 74, 24, 21);
+
+            // window frames
+            ctx.strokeStyle = '#8b5e34';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(screenX + 26, houseBaseY - 74, 24, 21);
+            ctx.strokeRect(screenX + scaledHouseWidth - 50, houseBaseY - 74, 24, 21);
+
+            // door knob
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            ctx.arc(screenX + scaledHouseWidth * 0.5 + 8, houseBaseY - 20, 2.3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // destination flag/signpost
+            ctx.fillStyle = '#7c5a3c';
+            ctx.fillRect(screenX - 26, houseBaseY - 42, 4, 42);
+            ctx.fillStyle = '#facc15';
+            ctx.fillRect(screenX - 40, houseBaseY - 60, 36, 16);
+            ctx.fillStyle = '#7c2d12';
+            ctx.font = 'bold 11px Jua, sans-serif';
+            ctx.fillText(`${GOAL_DISTANCE_METERS}m`, screenX - 39, houseBaseY - 48);
+
+            ctx.restore();
+        }
+
+        function checkGoalReached() {
+            if (gameState !== 'PLAYING') return;
+
+            const runnerFrontX = runner.x + 22;
+            const houseContactX = GOAL_WORLD_X - GOAL_HOUSE_WIDTH * 0.5 + 10;
+
+            if (runnerFrontX >= houseContactX) {
+                triggerFinish();
+            }
+        }
+
+        function triggerFinish() {
+            if (gameState !== 'PLAYING') return;
+
+            currentDistance = GOAL_DISTANCE_METERS;
+
+            if (currentDistance > bestDistance) {
+                bestDistance = currentDistance;
+                localStorage.setItem('runner_best_dist', bestDistance.toString());
+                document.getElementById('best-val').innerText = bestDistance.toFixed(1);
+            }
+
+            gameState = 'FINISHED';
+
+            document.getElementById('success-dist').innerText = currentDistance.toFixed(1);
+            document.getElementById('success-best').innerText = bestDistance.toFixed(1);
+
+            document.getElementById('game-over-modal').classList.add('hidden');
+            document.getElementById('success-modal').classList.remove('hidden');
+        }
+
+        function drawForegroundTraffic() {
+            const groundY = height - 120;
+
+            const sceneDistanceMeters = Math.max(0, (runner.x - 180) / 80);
+            const trafficBlendRaw = Math.max(0, Math.min(1, (sceneDistanceMeters - 80) / 40));
+            const trafficCityBlend =
+                trafficBlendRaw * trafficBlendRaw * (3 - 2 * trafficBlendRaw);
+
+            if (trafficCityBlend <= 0.01) return;
+
+            ctx.save();
+            ctx.globalAlpha *= trafficCityBlend;
+
+            const distanceMeters = Math.max(0, (runner.x - 180) / 80);
+            const cycleMeters = 180;
+            const dayPhase = (distanceMeters % cycleMeters) / cycleMeters;
+            const daylight = (Math.cos(dayPhase * Math.PI * 2) + 1) / 2;
+
+            function drawCar(x, y, scale, bodyColor, direction) {
+                ctx.save();
+                ctx.translate(x, y);
+                if (direction < 0) ctx.scale(-1, 1);
+                ctx.scale(scale, scale);
+
+                // ground shadow
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.24)';
+                ctx.beginPath();
+                ctx.ellipse(0, 14, 25, 5, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // body
+                ctx.fillStyle = bodyColor;
+                ctx.beginPath();
+                ctx.roundRect(-22, -5, 44, 16, 5);
+                ctx.fill();
+
+                // cabin
+                ctx.beginPath();
+                ctx.moveTo(-12, -5);
+                ctx.lineTo(-5, -17);
+                ctx.lineTo(11, -17);
+                ctx.lineTo(18, -5);
+                ctx.closePath();
+                ctx.fill();
+
+                // windows
+                ctx.fillStyle = 'rgba(219, 234, 254, 0.82)';
+                ctx.beginPath();
+                ctx.moveTo(-8, -6);
+                ctx.lineTo(-3, -14);
+                ctx.lineTo(4, -14);
+                ctx.lineTo(4, -6);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.moveTo(6, -14);
+                ctx.lineTo(11, -14);
+                ctx.lineTo(16, -6);
+                ctx.lineTo(6, -6);
+                ctx.closePath();
+                ctx.fill();
+
+                // wheels
+                ctx.fillStyle = '#111827';
+                ctx.beginPath();
+                ctx.arc(-13, 12, 5.2, 0, Math.PI * 2);
+                ctx.arc(13, 12, 5.2, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#cbd5e1';
+                ctx.beginPath();
+                ctx.arc(-13, 12, 1.9, 0, Math.PI * 2);
+                ctx.arc(13, 12, 1.9, 0, Math.PI * 2);
+                ctx.fill();
+
+                // night headlights / rear lights
+                const nightLightAlpha = Math.max(0, (0.5 - daylight) * 1.6);
+                if (nightLightAlpha > 0.01) {
+                    ctx.save();
+                    ctx.globalAlpha *= nightLightAlpha;
+
+                    ctx.fillStyle = 'rgba(253, 230, 138, 0.90)';
+                    ctx.beginPath();
+                    ctx.moveTo(20, 1);
+                    ctx.lineTo(42, -6);
+                    ctx.lineTo(42, 8);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    ctx.fillStyle = 'rgba(248, 113, 113, 0.85)';
+                    ctx.fillRect(-23, 0, 3, 4);
+                    ctx.restore();
+                }
+
+                ctx.restore();
+            }
+
+            function drawBus(x, y, scale, bodyColor, direction) {
+                ctx.save();
+                ctx.translate(x, y);
+                if (direction < 0) ctx.scale(-1, 1);
+                ctx.scale(scale, scale);
+
+                // ground shadow
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.25)';
+                ctx.beginPath();
+                ctx.ellipse(0, 17, 40, 6, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // body
+                ctx.fillStyle = bodyColor;
+                ctx.beginPath();
+                ctx.roundRect(-38, -12, 76, 29, 7);
+                ctx.fill();
+
+                // windows
+                ctx.fillStyle = 'rgba(226, 232, 240, 0.84)';
+                for (let i = 0; i < 5; i++) {
+                    ctx.fillRect(-25 + i * 12, -7, 8, 9);
+                }
+
+                // door
+                ctx.fillStyle = 'rgba(148, 163, 184, 0.68)';
+                ctx.fillRect(19, -7, 9, 18);
+
+                // lower trim
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(-38, 11, 76, 5);
+
+                // wheels
+                ctx.fillStyle = '#111827';
+                ctx.beginPath();
+                ctx.arc(-22, 16, 5.8, 0, Math.PI * 2);
+                ctx.arc(22, 16, 5.8, 0, Math.PI * 2);
+                ctx.fill();
+
+                const nightLightAlpha = Math.max(0, (0.5 - daylight) * 1.6);
+                if (nightLightAlpha > 0.01) {
+                    ctx.save();
+                    ctx.globalAlpha *= nightLightAlpha;
+
+                    ctx.fillStyle = 'rgba(253, 230, 138, 0.92)';
+                    ctx.beginPath();
+                    ctx.moveTo(38, -1);
+                    ctx.lineTo(68, -9);
+                    ctx.lineTo(68, 11);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    ctx.fillStyle = 'rgba(248, 113, 113, 0.85)';
+                    ctx.fillRect(-41, 0, 4, 5);
+                    ctx.restore();
+                }
+
+                ctx.restore();
+            }
+
+            const trafficNow = performance.now() * 0.001;
+
+            // Adjacent road lane.
+            // Vehicle size is increased another ~50% from the previous version.
+            const trafficLaneY = groundY + 34;
+
+            const streams = [
+                { cycle: 10.5, speed: 0.92, offset: 0.0, direction: 1, type: 'car' },
+                { cycle: 14.0, speed: 0.78, offset: 4.8, direction: -1, type: 'bus' },
+                { cycle: 12.0, speed: 0.86, offset: 8.2, direction: 1, type: 'car' }
+            ];
+
+            streams.forEach((stream, i) => {
+                const absoluteCyclePosition = trafficNow * stream.speed + stream.offset;
+                const t = absoluteCyclePosition % stream.cycle;
+                const visibleDuration = stream.type === 'bus' ? 3.5 : 2.9;
+
+                if (t < visibleDuration) {
+                    const local = t / visibleDuration;
+
+                    // Larger off-screen margin for the enlarged vehicles.
+                    const margin = stream.type === 'bus' ? 390 : 300;
+
+                    const fromX = stream.direction > 0 ? -margin : width + margin;
+                    const toX = stream.direction > 0 ? width + margin : -margin;
+                    const x = fromX + (toX - fromX) * local;
+
+                    // Stable color for the complete pass.
+                    const passIndex = Math.floor(absoluteCyclePosition / stream.cycle);
+
+                    if (stream.type === 'bus') {
+                        const busColors = ['#0ea5e9', '#ef4444', '#10b981', '#f59e0b'];
+
+                        drawBus(
+                            x,
+                            trafficLaneY - 10,
+                            3.27, // previous 2.18 × 1.5
+                            busColors[(passIndex + i) % busColors.length],
+                            stream.direction
+                        );
+                    } else {
+                        const carColors = ['#3b82f6', '#ef4444', '#f97316', '#10b981', '#8b5cf6', '#f43f5e'];
+
+                        drawCar(
+                            x,
+                            trafficLaneY,
+                            3.72, // previous 2.48 × 1.5
+                            carColors[(passIndex + i) % carColors.length],
+                            stream.direction
+                        );
+                    }
+                }
+            });
+            ctx.restore();
+        }
+
+        // Final scene lighting.
+        // Applied after background, particles and character are drawn so
+        // the runner and effects naturally darken together with the environment.
+        function applySceneLighting() {
+            const distanceMeters = Math.max(0, (runner.x - 180) / 80);
+            const cycleMeters = 180;
+            const dayPhase = (distanceMeters % cycleMeters) / cycleMeters;
+
+            // 1 at noon, 0 at midnight.
+            const daylight = (Math.cos(dayPhase * Math.PI * 2) + 1) / 2;
+
+            // Stronger blue darkness around midnight.
+            const nightStrength = Math.max(0, Math.min(1, (1 - daylight) * 1.15));
+            const darkness = nightStrength * 0.48;
+
+            if (darkness > 0.001) {
+                ctx.save();
+
+                // Deep blue night tint, affecting character + particles as well.
+                ctx.fillStyle = `rgba(7, 14, 32, ${darkness})`;
+                ctx.fillRect(0, 0, width, height);
+
+                // Very subtle cool moonlight so shapes remain readable.
+                if (nightStrength > 0.35) {
+                    const moonLight = Math.min(0.10, (nightStrength - 0.35) * 0.10);
+                    ctx.fillStyle = `rgba(96, 165, 250, ${moonLight})`;
+                    ctx.fillRect(0, 0, width, height);
+                }
+
+                ctx.restore();
+            }
+
+            // Warm tint near sunset and sunrise.
+            const sunsetStrength = Math.max(0, 1 - Math.abs(dayPhase - 0.25) / 0.12);
+            const sunriseStrength = Math.max(0, 1 - Math.abs(dayPhase - 0.75) / 0.12);
+            const warmStrength = Math.max(sunsetStrength, sunriseStrength);
+
+            if (warmStrength > 0.001) {
+                ctx.save();
+                ctx.fillStyle = `rgba(251, 146, 60, ${warmStrength * 0.08})`;
+                ctx.fillRect(0, 0, width, height);
+                ctx.restore();
+            }
+        }
+
+        function updateUI() {
+            currentDistance = Math.max(0, (runner.x - 180) / 80);
+            document.getElementById('dist-val').innerText = currentDistance.toFixed(1);
+
+            if (currentDistance > bestDistance) {
+                bestDistance = currentDistance;
+                localStorage.setItem('runner_best_dist', bestDistance.toString());
+                document.getElementById('best-val').innerText = bestDistance.toFixed(1);
+            }
+
+            const pointer = document.getElementById('gauge-pointer');
+            const statusText = document.getElementById('gauge-status-text');
+            const accelWarning = document.getElementById('accel-warning');
+            const driftBadge = document.getElementById('drift-force-badge');
+
+            const normalizedAngle = runner.angle / runner.maxSafeAngle; 
+            const percentage = Math.max(0, Math.min(100, (normalizedAngle + 1) * 50));
+            pointer.style.left = `${percentage}%`;
+
+            const tiltAbs = Math.abs(runner.angle);
+
+            if (selectedDifficulty === 'hard') {
+                if (tiltAbs < 0.35) {
+                    driftBadge.innerText = `🔥 어려운 난이도 · 쉬움 대비 ×5`;
+                    driftBadge.className = 'text-[10px] sm:text-[11px] font-extrabold text-rose-300 bg-rose-950/80 px-2 py-0.5 rounded-md border border-rose-600/50';
+                } else {
+                    driftBadge.innerText = `⚠️ 강한 균형 압력`;
+                    driftBadge.className = 'text-[10px] sm:text-[11px] font-extrabold text-orange-300 bg-orange-950/80 px-2 py-0.5 rounded-md border border-orange-600/50';
+                }
+            } else {
+                if (tiltAbs < 0.35) {
+                    driftBadge.innerText = `🌱 쉬운 난이도 모드`;
+                    driftBadge.className = 'text-[10px] sm:text-[11px] font-extrabold text-emerald-300 bg-emerald-950/80 px-2 py-0.5 rounded-md border border-emerald-600/50';
+                } else {
+                    driftBadge.innerText = `✨ 민첩한 복구 조작`;
+                    driftBadge.className = 'text-[10px] sm:text-[11px] font-extrabold text-sky-300 bg-sky-950/80 px-2 py-0.5 rounded-md border border-sky-600/50';
+                }
+            }
+
+            if (tiltAbs > 0.75) {
+                accelWarning.classList.remove('hidden');
+                statusText.innerText = '균형 잡기!';
+                statusText.className = 'text-amber-400 font-black animate-bounce';
+            } else {
+                accelWarning.classList.add('hidden');
+                statusText.innerText = '안전 상태';
+                statusText.className = 'text-emerald-400 font-black';
+            }
+
+            // Power-up remaining time HUD
+            const now = performance.now();
+            const speedBuff = document.getElementById('speed-buff');
+            const stabilityBuff = document.getElementById('stability-buff');
+
+            const speedRemaining = Math.max(0, runner.speedBoostUntil - now) / 1000;
+            const stabilityRemaining = Math.max(0, runner.stabilityBoostUntil - now) / 1000;
+
+            if (speedRemaining > 0) {
+                speedBuff.classList.remove('hidden');
+                speedBuff.innerText = `👟 스피드 ${speedRemaining.toFixed(1)}초`;
+            } else {
+                speedBuff.classList.add('hidden');
+            }
+
+            if (stabilityRemaining > 0) {
+                stabilityBuff.classList.remove('hidden');
+                stabilityBuff.innerText = `🥤 균형 안정 ${stabilityRemaining.toFixed(1)}초`;
+            } else {
+                stabilityBuff.classList.add('hidden');
+            }
+        }
+
+        function openGuide() {
+            guideOpen = true;
+            document.getElementById('guide-modal').classList.remove('hidden');
+        }
+
+        function closeGuide() {
+            guideOpen = false;
+            document.getElementById('guide-modal').classList.add('hidden');
+        }
+
+        function updateDifficultySelectionUI() {
+            const easyBtn = document.getElementById('difficulty-easy');
+            const hardBtn = document.getElementById('difficulty-hard');
+            const label = document.getElementById('selected-difficulty-label');
+
+            const easyState = easyBtn.querySelector('.difficulty-state');
+            const hardState = hardBtn.querySelector('.difficulty-state');
+
+            if (selectedDifficulty === 'easy') {
+                easyBtn.classList.add('selected');
+                hardBtn.classList.remove('selected');
+
+                easyState.innerText = '선택됨';
+                easyState.className = 'difficulty-state mt-4 inline-flex items-center justify-center px-4 py-2 rounded-full bg-emerald-600 text-white text-xs sm:text-sm font-black';
+
+                hardState.innerText = '선택하기';
+                hardState.className = 'difficulty-state mt-4 inline-flex items-center justify-center px-4 py-2 rounded-full bg-rose-100 text-rose-700 text-xs sm:text-sm font-black border border-rose-300';
+
+                label.innerText = '쉬움';
+                label.className = 'text-xl sm:text-2xl font-black text-emerald-600';
+            } else {
+                hardBtn.classList.add('selected');
+                easyBtn.classList.remove('selected');
+
+                hardState.innerText = '선택됨';
+                hardState.className = 'difficulty-state mt-4 inline-flex items-center justify-center px-4 py-2 rounded-full bg-rose-600 text-white text-xs sm:text-sm font-black';
+
+                easyState.innerText = '선택하기';
+                easyState.className = 'difficulty-state mt-4 inline-flex items-center justify-center px-4 py-2 rounded-full bg-emerald-100 text-emerald-700 text-xs sm:text-sm font-black border border-emerald-300';
+
+                label.innerText = '어려움';
+                label.className = 'text-xl sm:text-2xl font-black text-rose-600';
+            }
+        }
+
+        function triggerGameOver() {
+            gameState = 'GAMEOVER';
+            document.getElementById('final-dist').innerText = currentDistance.toFixed(1);
+            document.getElementById('final-best').innerText = bestDistance.toFixed(1);
+
+            const causeText = document.getElementById('cause-text');
+            if (runner.angle < 0) {
+                causeText.innerText = '몸이 뒤로 넘어가 균형을 잃었습니다!';
+            } else {
+                causeText.innerText = '앞으로 무게 중심이 쏠려 쓰러졌습니다!';
+            }
+
+            document.getElementById('game-over-modal').classList.remove('hidden');
+        }
+
+        function returnToMenu() {
+            closeGuide();
+
+            // Reset current run state, but keep best record and difficulty selection.
+            runner.reset();
+            particles.length = 0;
+            powerups.length = 0;
+            lastPowerupRollAt = performance.now();
+
+            document.getElementById('speed-buff').classList.add('hidden');
+            document.getElementById('stability-buff').classList.add('hidden');
+
+            gameState = 'START';
+
+            document.getElementById('game-over-modal').classList.add('hidden');
+            document.getElementById('success-modal').classList.add('hidden');
+            document.getElementById('start-modal').classList.remove('hidden');
+
+            // Keep the difficulty UI in sync with the current selection.
+            updateDifficultySelectionUI();
+        }
+
+        function restartGame() {
+            closeGuide();
+            runner.reset();
+            particles.length = 0;
+            powerups.length = 0;
+            lastPowerupRollAt = performance.now();
+
+            document.getElementById('speed-buff').classList.add('hidden');
+            document.getElementById('stability-buff').classList.add('hidden');
+
+            const driftBadge = document.getElementById('drift-force-badge');
+            if (selectedDifficulty === 'easy') {
+                driftBadge.innerText = '🌱 쉬운 난이도 모드';
+            } else {
+                driftBadge.innerText = '🔥 어려운 난이도 모드';
+            }
+
+            gameState = 'PLAYING';
+            document.getElementById('start-modal').classList.add('hidden');
+            document.getElementById('game-over-modal').classList.add('hidden');
+            document.getElementById('success-modal').classList.add('hidden');
+        }
+
+        let cameraX = 0;
+
+        function gameLoop() {
+            const now = performance.now();
+            cameraX = runner.x - 200;
+
+            runner.update();
+            updatePowerups(now);
+            checkGoalReached();
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update();
+                if (particles[i].alpha <= 0) particles.splice(i, 1);
+            }
+
+            drawBackground(cameraX);
+            drawGoalHouse(cameraX);
+
+            // Items live on the field and receive the same day/night lighting.
+            powerups.forEach(item => item.draw(ctx, cameraX, now));
+
+            particles.forEach(p => p.draw(ctx, cameraX));
+            runner.draw(ctx, cameraX);
+            drawPowerupEffects(ctx, cameraX, now);
+
+            // Vehicles are intentionally rendered after the runner.
+            // Therefore a car/bus visually passes in front when they overlap.
+            drawForegroundTraffic();
+
+            // Apply the same time-of-day lighting to the entire canvas,
+            // including the runner, traffic, items and particle effects.
+            applySceneLighting();
+
+            if (gameState === 'PLAYING') {
+                updateUI();
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        const btnLeft = document.getElementById('btn-left');
+        const btnRight = document.getElementById('btn-right');
+
+        const bindBtn = (btn, keyProp) => {
+            const start = (e) => { e.preventDefault(); keys[keyProp] = true; btn.classList.add('btn-pressed'); };
+            const end = (e) => { e.preventDefault(); keys[keyProp] = false; btn.classList.remove('btn-pressed'); };
+
+            btn.addEventListener('mousedown', start);
+            btn.addEventListener('mouseup', end);
+            btn.addEventListener('mouseleave', end);
+            btn.addEventListener('touchstart', start);
+            btn.addEventListener('touchend', end);
+        };
+
+        bindBtn(btnLeft, 'left');
+        bindBtn(btnRight, 'right');
+
+        document.getElementById('difficulty-easy').addEventListener('click', () => {
+            selectedDifficulty = 'easy';
+            updateDifficultySelectionUI();
+        });
+
+        document.getElementById('difficulty-hard').addEventListener('click', () => {
+            selectedDifficulty = 'hard';
+            updateDifficultySelectionUI();
+        });
+
+        document.getElementById('guide-btn').addEventListener('click', openGuide);
+        document.getElementById('guide-close-btn').addEventListener('click', closeGuide);
+        document.getElementById('guide-close-x').addEventListener('click', closeGuide);
+
+        document.getElementById('guide-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'guide-modal') closeGuide();
+        });
+
+        document.getElementById('start-btn').addEventListener('click', restartGame);
+        document.getElementById('restart-btn').addEventListener('click', restartGame);
+        document.getElementById('success-restart-btn').addEventListener('click', restartGame);
+        document.getElementById('menu-btn').addEventListener('click', returnToMenu);
+        document.getElementById('success-menu-btn').addEventListener('click', returnToMenu);
+
+        // Initialize start screen selection
+        updateDifficultySelectionUI();
+
+        // Start Game Engine Loop
+        gameLoop();
+    </script>
+</body>
+</html>

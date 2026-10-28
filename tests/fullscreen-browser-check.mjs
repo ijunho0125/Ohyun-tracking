@@ -47,7 +47,7 @@ try{
  await page.locator('input[type=file]').setInputFiles(fileURLToPath(new URL('./fixtures/character.png',import.meta.url)));
  await page.getByText('그림을 불러왔어요. 발 기준점을 맞춰보세요.',{exact:true}).waitFor();
  await page.getByLabel('캐릭터 이름',{exact:true}).fill('원본 게임 연결 테스트');await button('이미지 저장').click();
- await page.getByText('사이트에 저장하고 연결된 디노 런에 적용했어요.',{exact:true}).waitFor();await fits('saved character');await shot('viewport-character');
+ await page.getByText('사이트에 저장하고 연결된 병아리 질주 게임에 적용했어요.',{exact:true}).waitFor();await fits('saved character');await shot('viewport-character');
  await page.getByRole('button',{name:/보관함 \(/}).click();await fits('character library');await button('그림 편집').click();
  pass('character tabs, actual image processing/storage and paginated library');
  await nav('기술 체험관');await fits('tracking lab');await button('몸').click();await fits('body lab');await button('그림 움직임').click();await fits('drawing lab');await shot('viewport-lab');
@@ -69,13 +69,15 @@ try{
  await fits('dino pause');await button('이번 게임 종료').click();await button('다시 하기').click();await page.keyboard.press('Escape');await leave();
  pass('actual source dino, fullscreen entry/exit, background, custom character, jump/duck, score, pause and restart');
  await page.locator('.game-card.tetris').click();await button('조작 준비하기').waitFor();
- assert.equal(await page.locator('.game-view').getAttribute('data-source'),'temp_gameFile/테트리스.html');
+ assert.equal(await page.locator('.game-view').getAttribute('data-source'),'temp_gameFile/정보축전 2026 - 오현고 테트리스.html');
  await button('어려움 · 방해 블록').click();await button('조작 준비하기').click();assert.equal((await snapshot()).mode,'HARD');
  const initial=await snapshot();await page.keyboard.press('ArrowLeft');assert.equal((await snapshot()).figure.x,initial.figure.x-1);await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowUp');
  await page.keyboard.press('Space');assert((await snapshot()).field.some(row=>row.some(v=>v>0)));
  await page.keyboard.down('ArrowDown');assert.equal((await snapshot()).pressingDown,true);await page.keyboard.up('ArrowDown');assert.equal((await snapshot()).pressingDown,false);
  await fits('tetris practice');await shot('viewport-tetris');
- const dimensions=await page.locator('iframe').evaluate(f=>{const c=f.contentDocument.getElementById('tetrisCanvas'),r=c.getBoundingClientRect();return{w:r.width,h:r.height,frameHeight:f.clientHeight};});assert(Math.abs(dimensions.h/dimensions.w-2)<.03);assert(dimensions.h>=dimensions.frameHeight*.58);
+ const dimensions=await page.locator('iframe').evaluate(f=>{const c=f.contentDocument.getElementById('tetrisCanvas'),r=c.getBoundingClientRect(),fr=f.getBoundingClientRect();return{w:r.width,h:r.height,top:r.top+fr.top,bottom:r.bottom+fr.top,frameHeight:f.clientHeight};});
+ const practiceTop=(await page.locator('.practice-strip').boundingBox()).y;
+ assert(Math.abs(dimensions.h/dimensions.w-2)<.03);assert(dimensions.h>=dimensions.frameHeight*.7);assert(dimensions.top>=0&&dimensions.bottom<practiceTop-6,'the complete board must remain visible above the practice controls');
  await button('연습 완료 · 게임 시작').click();await page.locator('.countdown').waitFor({state:'hidden'});await button('일시정지').click();const paused=await snapshot();await page.waitForTimeout(1100);assert.deepEqual((await snapshot()).figure,paused.figure);
  await button('카운트다운 후 재개').click();await page.locator('.countdown').waitFor({state:'hidden'});assert.equal((await snapshot()).state,'playing');await button('일시정지').click();await button('이번 게임 종료').click();await leave();
  pass('actual source tetris HARD mode, board scaling, original rotation/drop, soft-drop release, pause and resume');

@@ -307,7 +307,7 @@
 
   <div class="footer-row">
     <span><kbd>↑</kbd> / <kbd>Space</kbd> 점프 &nbsp; <kbd>↓</kbd> 숙이기(홀드)</span>
-    <span>아이템 : ⬆️ 점프 강화 &nbsp;·&nbsp; ⚡ 스피드+무적 돌진</span>
+    <span>아이템 : ⬆️ 점프 강화 &nbsp;·&nbsp; ⚡ 스피드 강화</span>
   </div>
 </div>
 
@@ -969,6 +969,7 @@
 
   let obstacles = [];
   let items = [];
+  let coinCount = 0;
 
   function makeObstacle(type) {
     switch (type) {
@@ -1051,6 +1052,11 @@
       });
     }
 
+    // Coins are optional and sit well behind the obstacle, at running or jumping height.
+    if (Math.random() < 0.65) {
+      items.push({type: 'coin', x: LOGICAL_W + 20 + encounterEndPx + 160,
+        y: GROUND_Y - (Math.random() < 0.5 ? 35 : 105), width: 22, height: 22, collected: false});
+    }
     return encounterEndPx;
   }
 
@@ -1287,9 +1293,14 @@
       ctx.translate(it.x + it.width/2, floatY + it.height/2);
       
       ctx.shadowBlur = 12;
-      ctx.shadowColor = it.type === 'jump-boost' ? '#4ADE80' : '#60A5FA';
-      
-      if (it.type === 'jump-boost') {
+      ctx.shadowColor = it.type === 'coin' ? '#f59e0b' : it.type === 'jump-boost' ? '#4ADE80' : '#60A5FA';
+
+      if (it.type === 'coin') {
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#92400e'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = '#fff3b0'; ctx.fillRect(-2, -6, 4, 12);
+      } else if (it.type === 'jump-boost') {
         ctx.fillStyle = '#4ADE80';
         ctx.beginPath();
         ctx.moveTo(0, -10);
@@ -1318,12 +1329,16 @@
   }
 
   function applyItemEffect(type) {
-    if (type === 'jump-boost') {
+    if (type === 'coin') {
+      coinCount += 1;
+      score += 20;
+      beep(880, 0.07, 'sine', 0.06);
+    } else if (type === 'jump-boost') {
       effectTimers.jump = 4000; 
       beep(600, 0.1, 'sine', 0.1); 
       setTimeout(()=>beep(800, 0.15, 'sine', 0.1), 100);
     } else if (type === 'speed-boost') {
-      effectTimers.speed = 1333; // 원래 2000ms의 2/3
+      effectTimers.speed = 2000; // 스피드 효과 2초
       beep(1000, 0.1, 'square', 0.05); 
       setTimeout(()=>beep(1200, 0.2, 'square', 0.05), 100);
     }
@@ -1345,7 +1360,6 @@
       ctx.fillStyle = '#60A5FA';
       ctx.font = 'bold 13px var(--font-display)';
       ctx.fillText('SPEED BOOST', LOGICAL_W/2 - 130, yPos);
-      ctx.fillRect(LOGICAL_W/2 - 30, yPos - 10, (effectTimers.speed / 1333) * barW, 10);
     }
   }
 
@@ -1372,6 +1386,7 @@
     resetDino();
     distance = 0;
     score = 0;
+    coinCount = 0;
     gameSpeed = 6;
     nextSpawnDistance = 300;
     gameState = 'running';
@@ -1459,6 +1474,18 @@
       const glowStr  = 3 + proximity * 14;
 
       ctx.save();
+      // Jump timing window: start the jump when the obstacle enters this box.
+      const timingLeft = Math.max(dino.x + dino.width + 12, ob.x - 74);
+      const timingRight = Math.min(ob.x + ob.width + 10, LOGICAL_W);
+      if (timingRight > timingLeft) {
+        ctx.globalAlpha = Math.min(0.82, 0.3 + proximity * 0.5);
+        ctx.fillStyle = '#E00000';
+        ctx.fillRect(timingLeft, GROUND_Y - 52, timingRight - timingLeft, 46);
+        ctx.globalAlpha = Math.min(1, 0.65 + proximity * 0.3);
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(timingLeft, GROUND_Y - 52, timingRight - timingLeft, 46);
+      }
       ctx.shadowBlur  = glowStr;
       ctx.shadowColor = warnGlow;
       ctx.globalAlpha = Math.min(1, baseAlpha);
@@ -1543,7 +1570,6 @@
       }
 
       const dHitbox = dinoHitbox();
-      const isInvincible = effectTimers.speed > 0;
 
       for (let i = items.length - 1; i >= 0; i--) {
         const it = items[i];
@@ -1567,13 +1593,7 @@
         }
         
         if (rectsOverlap(dHitbox, obstacleHitbox(ob))) {
-          if (isInvincible) {
-            obstacles.splice(i, 1);
-            score += 10; 
-            beep(400, 0.05, 'sawtooth', 0.05); 
-          } else {
-            endGame();
-          }
+          endGame();
         }
       }
 
@@ -1591,6 +1611,14 @@
     drawDino(); 
     
     if (gameState === 'running') drawEffectsUI();
+    // Keep the collection goal visible without revealing any protection timer.
+    ctx.save();
+    ctx.fillStyle = 'rgba(42, 31, 20, 0.82)';
+    ctx.fillRect(LOGICAL_W - 122, 10, 110, 30);
+    ctx.fillStyle = '#fbbf24'; ctx.beginPath(); ctx.arc(LOGICAL_W - 106, 25, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 15px sans-serif';
+    ctx.fillText('코인 ' + coinCount, LOGICAL_W - 93, 30);
+    ctx.restore();
 
     requestAnimationFrame(frame);
   }

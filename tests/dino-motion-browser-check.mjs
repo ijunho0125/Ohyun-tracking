@@ -22,7 +22,7 @@ try {
   },html.replace(collision,'if (false) {').replace(speedBoost,'const speedMultiplier = 1.3;'));
   await page.waitForFunction(()=>document.querySelector('#pacing-check').contentWindow.motionGame);
   for(const dinoMode of ['body','seated']) {
-    for(const obstacleGap of [1.3,3.2,5]) {
+    for(const obstacleGap of [.6,1.3,3.2,5]) {
       const result=await page.evaluate(({dinoMode,obstacleGap})=>{
         const api=document.querySelector('#pacing-check').contentWindow.motionGame;
         api.configure({dinoSpeed:380,obstacleGap,dinoMode},'day',true);
@@ -45,7 +45,7 @@ try {
         return {spawns,arrivals,maximumSpeed};
       },{dinoMode,obstacleGap});
       assert(result.spawns.length>=5,JSON.stringify(result));
-      assert(result.maximumSpeed>=9.5&&result.maximumSpeed<=10,'faster motion speed reaches its new cap');
+      assert(result.maximumSpeed>=11.5&&result.maximumSpeed<=12,'motion speed accelerates to its new cap');
       for(let i=0;i<result.spawns.length;i++) {
         assert(result.spawns[i].count<=1,'no compound motion encounters');
         if(dinoMode==='seated')assert(result.spawns[i].type.startsWith('cactus-'),'seated input needs no duck');
@@ -71,7 +71,15 @@ try {
       if (width) ob.width = width;
       obstacles.push(ob);
     },
-    boost() { effectTimers.speed = 2000; }
+    boost() { applyItemEffect('speed-boost'); },
+    boostPickup() { items.push({type:'speed-boost',x:dino.x+12,y:dino.y+8,width:24,height:24,collected:false}); },
+    effectUI() {
+      const calls = [], text = ctx.fillText, rect = ctx.fillRect;
+      ctx.fillText = (...args) => calls.push(['text', args[0]]);
+      ctx.fillRect = (...args) => calls.push(['rect', ...args]);
+      try { drawEffectsUI(); } finally { ctx.fillText = text; ctx.fillRect = rect; }
+      return calls;
+    }
   }; frame(0);`));
   await page.waitForFunction(()=>document.querySelector('#assist-check').contentWindow.motionGame);
   const assistResults=await page.evaluate(()=>{
@@ -83,74 +91,42 @@ try {
       api.configure({dinoSpeed:260,obstacleGap:3.2,dinoMode},'day',motion);
       api.practice(false);api.start();fixture.quiet();
     };
-    const unprotected=(motion=true,dinoMode='body')=>{fresh(motion,dinoMode);tick(125);};
+    for(const motion of [true,false]) for(const dinoMode of ['body','seated']) {
+      const mode = (motion ? 'motion ' : 'keyboard ') + dinoMode;
+      fresh(motion,dinoMode); fixture.obstacle(); tick();
+      check(api.snapshot().state==='gameover',mode+': collision ends immediately after start');
 
-    for(const dinoMode of ['body','seated']) {
-      fresh(true,dinoMode);
-      api.command({type:'duck',value:true});tick();
-      check(api.snapshot().dino.state==='duck','fixture is physically crouched');
-      api.command({type:'duck',value:false});api.command({type:'jump'});tick();
-      check(!api.snapshot().grounded&&api.snapshot().dino.vy<0,'crouch jump remains airborne after its first physics step');
+      fresh(motion,dinoMode); api.pause(); api.resume(); fixture.obstacle(); tick();
+      check(api.snapshot().state==='gameover',mode+': collision ends immediately after resume');
+
+      fresh(motion,dinoMode); api.command({type:'duck',value:true}); tick();
+      check(api.snapshot().dino.state==='duck',mode+': crouch works');
+      fixture.obstacle(); tick();
+      check(api.snapshot().state==='gameover',mode+': crouching does not protect from collision');
+
+      fresh(motion,dinoMode); api.command({type:'jump'}); fixture.obstacle(); tick();
+      check(api.snapshot().state==='gameover',mode+': jump takeoff does not grant protection');
+
+      fresh(motion,dinoMode); api.command({type:'duck',value:true});tick();
+      api.command({type:'duck',value:false}); api.command({type:'jump'});tick();
+      check(!api.snapshot().grounded&&api.snapshot().dino.vy<0,mode+': crouch jump takes off');
       const takeoffY=api.snapshot().dino.y;tick(3);
-      check(api.snapshot().dino.y<takeoffY,'crouch jump continues climbing instead of immediately landing');
-      fresh(true,dinoMode);
-      check(api.snapshot().speed===6.5,'default motion speed increases from 3.9 to 6.5');
-      check(api.snapshot().assist.protectionMs===2000,'two seconds of startup protection');
+      check(api.snapshot().dino.y<takeoffY,mode+': jump continues climbing');
+      let flight=0; while(!api.snapshot().grounded&&flight++<90)tick();
+      check(api.snapshot().grounded,mode+': jump lands');
       fixture.obstacle();tick();
-      check(api.snapshot().state==='running'&&api.snapshot().obstacles===1,'protected obstacles remain visible');
-      check(api.snapshot().score<2,'assist does not award a collision bonus');
+      check(api.snapshot().state==='gameover',mode+': landing does not grant protection');
 
-      unprotected(true,dinoMode);fixture.obstacle();tick();
-      check(api.snapshot().assist.pendingCollisions===1,'motion contact waits briefly for a gesture');
-      check(api.snapshot().dino.state==='run','contact does not fabricate a jump');
-      tick(9);
-      check(api.snapshot().state==='gameover','a real collision still ends the game without input');
+      fresh(motion,dinoMode); fixture.boost();
+      check(api.snapshot().effects.speed===2000,mode+': speed item still grants speed boost');
+      tick();check(JSON.stringify(fixture.effectUI())===JSON.stringify([['text','SPEED BOOST']]),mode+': boost has no invincibility timer');
+      fixture.obstacle();tick();
+      check(api.snapshot().state==='gameover',mode+': boosted collision ends game');
 
-      unprotected(true,dinoMode);fixture.obstacle();tick(6);api.command({type:'jump'});
-      check(api.snapshot().dino.state==='jump'&&api.snapshot().assist.pendingCollisions===0,'a gesture about 100ms late rescues contact');
-      check(api.snapshot().assist.protectionMs===450,'accepted jump grants 450ms protection');
-      tick(5);const jumpProtection=api.snapshot().assist.protectionMs;
-      api.command({type:'jump'});
-      check(api.snapshot().assist.protectionMs===jumpProtection,'airborne jump repeats cannot renew protection');
-      let flight=0;while(!api.snapshot().grounded&&flight++<90)tick();
-      check(api.snapshot().grounded&&api.snapshot().assist.protectionMs===180,'landing adds a short recovery window');
-      tick(12);check(api.snapshot().assist.protectionMs===0,'landing protection expires');
-
-      unprotected(true,dinoMode);fixture.obstacle();tick(6);api.command({type:'duck',value:true});tick();
-      check(api.snapshot().state==='running'&&api.snapshot().dino.state==='duck','late crouch also rescues contact');
-
-      unprotected(true,dinoMode);api.command({type:'duck',value:true});
-      check(api.snapshot().assist.protectionMs===300,'new crouch grants 300ms protection');
-      fixture.obstacle(320);tick(10);const duckProtection=api.snapshot().assist.protectionMs;
-      api.command({type:'duck',value:true});
-      check(api.snapshot().assist.protectionMs===duckProtection,'held crouch cannot renew protection');
-      tick(15);
-      check(api.snapshot().assist.protectionMs===0&&api.snapshot().state==='running'&&api.snapshot().obstacles===1,'the same obstacle stays safe through its trailing edge');
-      fixture.obstacle();tick(10);
-      check(api.snapshot().state==='gameover','a subsequent obstacle is dangerous after protection expires');
-
-      unprotected(true,dinoMode);fixture.obstacle();tick();api.pause();
-      const paused=api.snapshot();tick(180);
-      check(api.snapshot().state==='paused'&&api.snapshot().assist.pendingCollisions===paused.assist.pendingCollisions,'pending collisions freeze while paused');
-      api.resume();check(api.snapshot().assist.protectionMs===1000&&api.snapshot().assist.pendingCollisions===0,'resume clears pending contact and grants one second');
-      tick(20);api.pause();const protectedPause=api.snapshot().assist.protectionMs;tick(180);
-      check(api.snapshot().assist.protectionMs===protectedPause,'protection uses playing time only');
-      api.resume();tick(70);fixture.obstacle();tick(10);
-      check(api.snapshot().state==='gameover','resume protection expires');
-      results.push(dinoMode+': faster running, start/action/landing/resume protection, late gestures, real game over');
+      fresh(motion,dinoMode); fixture.boostPickup(); fixture.obstacle();tick();
+      check(api.snapshot().effects.speed>0&&api.snapshot().state==='gameover',mode+': same-frame item pickup does not prevent collision');
+      results.push(mode+': collision always ends the game; speed item only boosts speed');
     }
-
-    unprotected(false);check(api.snapshot().speed>6.9,'keyboard running is faster too');
-    fixture.obstacle();tick();
-    check(api.snapshot().state==='gameover'&&api.snapshot().assist.pendingCollisions===0,'keyboard collisions remain immediate after startup protection');
-
-    unprotected();fixture.boost();fixture.obstacle();const beforeBoost=api.snapshot().score;tick();
-    check(api.snapshot().state==='running'&&api.snapshot().obstacles===0&&api.snapshot().score>=beforeBoost+10,'original speed boost still removes obstacles and awards its bonus');
-    api.command({type:'jump'});api.reset();
-    check(api.snapshot().state==='idle'&&api.snapshot().assist.protectionMs===0&&api.snapshot().assist.pendingCollisions===0,'reset clears all assist state');
-    api.start();check(api.snapshot().assist.protectionMs===2000,'restart grants fresh protection');
-    api.dispose();check(api.snapshot().state==='disposed'&&api.snapshot().assist.protectionMs===0,'dispose clears protection');
-    results.push('keyboard collision rules, original boost rewards, restart and disposal');
     return results;
   });
   for(const result of assistResults)console.log('PASS: '+result);
@@ -218,6 +194,8 @@ try {
     await fixture(body(.07),0);
   };
   await landCrouched();
+  await fixture(body(.07),1500);
+  assert.equal((await snapshot()).dino.state,'duck','crouch stays active while the player keeps the pose');
   for(let expected=3;expected<=5;expected++){
     await fixture(body(-.021),200);
     assert.equal(await inputPage.evaluate(()=>window.__jumps),expected,'crouch-to-jump must work without a standing pause');
@@ -234,7 +212,7 @@ try {
   console.log('PASS: actual dino motion calibration, small jumps, repeated crouch-to-jump transitions, duck release, and standing without false jumps');
   await button('로비').click();await inputPage.waitForFunction(()=>!document.fullscreenElement);
   await button('설정·도움말').click();await inputPage.locator('.view-tabs').getByRole('button',{name:'게임',exact:true}).click();
-  await inputPage.getByLabel('디노 모션 조작').selectOption('seated');await inputPage.keyboard.press('Escape');
+  await inputPage.getByLabel('병아리 질주 게임 모션 조작').selectOption('seated');await inputPage.keyboard.press('Escape');
   await inputPage.locator('.game-card.dino').click();await fixture(body());await button('조작 준비하기').click();
   await inputPage.locator('.game-view[data-phase="practice"]').waitFor();
   assert.equal(await inputPage.locator('.practice-checks > span').count(),1);
@@ -242,9 +220,9 @@ try {
   await fixture(body());await inputPage.keyboard.press('Escape');await inputPage.waitForTimeout(200);
   await inputPage.evaluate(()=>{window.__readyDelay=1800;window.__firstFrameDelay=1600;});
   await button('카운트다운 후 재개').click();await inputPage.waitForTimeout(1500);
-  assert.equal(await inputPage.locator('.game-view').getAttribute('data-phase'),'countdown');
+  assert.equal(await inputPage.locator('.game-view').getAttribute('data-phase'),'calibration');
   await inputPage.locator('.game-view[data-phase="running"]').waitFor({timeout:10000});assert((await snapshot()).speed>=6.5&&(await snapshot()).speed<=10);
-  console.log('PASS: seated dino needs only hand-raise practice; slow model loading and first-inference warmup do not falsely pause resume');
+  console.log('PASS: seated dino needs only hand-raise practice; resume recalibrates after slow model loading and first-inference warmup');
   await inputPage.evaluate(()=>{window.__readyDelay=0;window.__firstFrameDelay=0;});
   await inputPage.keyboard.press('Escape');await button('키보드로 이어하기').click();
   await inputPage.locator('.game-view[data-phase="running"]').waitFor();
@@ -256,6 +234,15 @@ try {
   await inputPage.locator('.game-card.dino').click();await button('키보드로').click();
   await inputPage.waitForTimeout(200);
   assert.equal(await inputPage.locator('.game-view').getAttribute('data-input'),'keyboard','explicit keyboard preference must be respected');
+  await button('조작 준비하기').click();
+  await inputPage.locator('.game-view[data-phase="practice"]').waitFor();
+  await inputPage.keyboard.down('ArrowDown');
+  await inputPage.waitForFunction(()=>document.querySelector('iframe.source-game').contentWindow.motionGame.snapshot().dino.state==='duck');
+  await inputPage.evaluate(()=>window.dispatchEvent(new PointerEvent('pointerup')));
+  await inputPage.waitForTimeout(1500);
+  assert.equal((await snapshot()).dino.state,'duck','a held down key continues crouching even after pointer release');
+  await inputPage.keyboard.up('ArrowDown');
+  await inputPage.waitForFunction(()=>document.querySelector('iframe.source-game').contentWindow.motionGame.snapshot().dino.state==='run');
   console.log('PASS: paused keyboard games switch to motion through calibration; explicit keyboard choice remains available');
   assert.deepEqual(errors,[]);
 } finally { await browser.close(); }

@@ -24,17 +24,22 @@ export function poseMetrics(p: Landmark[], aspect: number): PoseMetrics | null {
 }
 export class PoseControls {
   baseline: PoseMetrics | null = null; samples: PoseMetrics[] = []; calibrating = false;
+  private calibrationTime = -Infinity;
   previous: PoseMetrics | null = null; previousRaw: PoseMetrics | null = null; filtered: PoseMetrics | null = null; previousTime = 0; lastJumpTime = -Infinity;
   jumpArmed = true; riseFrames = 0; neutralFrames = 0; duck = false; tilt = 0;
   beginCalibration() { this.baseline = null; this.samples = []; this.calibrating = true; this.reset(); }
-  reset() { this.previous = null; this.previousRaw = null; this.filtered = null; this.previousTime = 0; this.jumpArmed = false; this.riseFrames = 0; this.neutralFrames = 0; this.duck = false; this.tilt = 0; this.lastJumpTime = -Infinity; }
+  reset() { if(this.calibrating)this.samples = []; this.calibrationTime = -Infinity; this.previous = null; this.previousRaw = null; this.filtered = null; this.previousTime = 0; this.jumpArmed = false; this.riseFrames = 0; this.neutralFrames = 0; this.duck = false; this.tilt = 0; this.lastJumpTime = -Infinity; }
   update(p: Landmark[], now: number, aspect: number, s: Settings, grounded: boolean) {
     const raw = poseMetrics(p, aspect);
     const commands: Command[] = [];
     const wristLost=s.dinoMode==='seated'&&[15,16].every(i=>!visible(p[i]));
-    if (!raw||wristLost||!Number.isFinite(now)) { this.reset(); if (this.calibrating) this.samples = []; return { valid: false, commands: [{ type: 'duck', value: false }, { type: 'tilt', value: 0 }] as Command[], progress: 0 }; }
+    if (!raw||wristLost||!Number.isFinite(now)) { this.reset(); return { valid: false, commands: [{ type: 'duck', value: false }, { type: 'tilt', value: 0 }] as Command[], progress: 0 }; }
     if (this.calibrating) {
-      if (this.samples.length && (Math.abs(raw.shoulderY - this.samples[0].shoulderY) > .035 || Math.abs(raw.lean - this.samples[0].lean) > .1)) this.samples = [];
+      if (now <= this.calibrationTime) return { valid: true, commands, progress: this.samples.length / 30 };
+      if (now - this.calibrationTime > 350) this.samples = [];
+      this.calibrationTime = now;
+      const first = this.samples[0];
+      if (first && (Math.abs(raw.shoulderY - first.shoulderY) > .035 || Math.abs(raw.hipY - first.hipY) > .035 || Math.abs(raw.size - first.size) > first.size * .15 || Math.abs(raw.lean - first.lean) > .1)) this.samples = [];
       this.samples.push(raw);
       if (this.samples.length >= 30) {
         const avg = (k: keyof PoseMetrics) => this.samples.reduce((a, v) => a + v[k], 0) / this.samples.length;
