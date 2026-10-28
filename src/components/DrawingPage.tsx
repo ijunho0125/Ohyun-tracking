@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { ArrowLeft, Save, Check } from 'lucide-react';
 import { DrawingPad, type DrawingPadHandle } from './DrawingPad';
-import { newCharacterId, saveSharedCharacter } from '../core/shared-characters';
+import { newCharacterId, saveSharedCharacter, selectSharedCharacter } from '../core/shared-characters';
 
 export default function DrawingPage(){
   const pad=useRef<DrawingPadHandle>(null),saving=useRef(false);
@@ -12,8 +12,10 @@ export default function DrawingPage(){
     try{
       const image=await pad.current?.snapshot();
       if(!image){setMessage('빈 종이예요. 캐릭터를 먼저 그려주세요.');return;}
-      await saveSharedCharacter({id:newCharacterId(),name:name.trim()||'나의 캐릭터',original:image,processed:image,flip:false,size:1,footX:.5,footY:1});
-      setSaved(true);setMessage('사이트에 저장하고 연결된 디노 런에 적용했어요.');
+      const character={id:newCharacterId(),name:name.trim()||'나의 캐릭터',original:image,processed:image,flip:false,size:1,footX:.5,footY:1};
+      await saveSharedCharacter(character);
+      await selectSharedCharacter(character);
+      setSaved(true);setMessage('저장 완료! 디노 런에 바로 적용됐어요. 게임 시작 버튼을 눌러주세요.');
     }catch(error){setMessage(error instanceof Error?error.message:'저장하지 못했어요. 다시 시도해주세요.');}
     finally{saving.current=false;setWorking(false);}
   };

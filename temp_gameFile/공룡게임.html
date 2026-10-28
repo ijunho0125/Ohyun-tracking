@@ -1070,23 +1070,195 @@
         ctx.fillRect(sx - 5, sy + 8, 5, 8);
       }
     } else {
-      const flap = Math.sin(performance.now() / 90 + ob.x) > 0;
-      ctx.fillStyle = colors.bird;
+      // 새 (Bird) 장애물: 좌측(플레이어 방향)으로 비행하는 보라색 계열의 디테일한 새 디자인
+      ctx.save();
+      const flapTime = performance.now() / 80 + ob.x * 0.04;
+      const flap = Math.sin(flapTime); // -1 (날개 하강) ~ +1 (날개 상승)
+      const bobY = flap * 1.5; // 비행 시 부드러운 상하 바운스
+      const ox = ob.x;
+      const oy = ob.y + bobY;
+
+      const mainColor = colors.bird || '#74467E';
+      const wingColor = '#592D63';
+      const bellyColor = '#D6B4E4';
+      const outlineColor = '#210F2B';
+      const beakColor = '#FF9D1B';
+
+      // 1. 뒤쪽 날개 (원근감을 위해 몸통 뒤쪽에 먼저 렌더링)
+      ctx.fillStyle = '#492252';
+      ctx.strokeStyle = outlineColor;
+      ctx.lineWidth = 1.8;
+      ctx.lineJoin = 'round';
       ctx.beginPath();
-      ctx.ellipse(ob.x + ob.width / 2, ob.y + ob.height / 2, ob.width / 2, ob.height / 2.6, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      if (flap) {
-        ctx.moveTo(ob.x + 6, ob.y + ob.height / 2);
-        ctx.lineTo(ob.x - 6, ob.y - 6);
-        ctx.lineTo(ob.x + 16, ob.y + 4);
+      const bwx = ox + 17;
+      const bwy = oy + 9;
+      ctx.moveTo(bwx, bwy);
+      if (flap > 0) {
+        // 날개 올림
+        const tipY = bwy - 10 - flap * 5;
+        const tipX = bwx + 3 - flap * 2;
+        ctx.quadraticCurveTo(bwx - 4, tipY + 4, tipX, tipY);
+        ctx.lineTo(tipX + 4, tipY + 4);
+        ctx.quadraticCurveTo(bwx + 8, bwy + 2, bwx + 6, bwy + 3);
       } else {
-        ctx.moveTo(ob.x + 6, ob.y + ob.height / 2);
-        ctx.lineTo(ob.x - 6, ob.y + ob.height + 6);
-        ctx.lineTo(ob.x + 16, ob.y + ob.height - 4);
+        // 날개 내림
+        const tipY = bwy + 8 + Math.abs(flap) * 6;
+        const tipX = bwx + 3;
+        ctx.quadraticCurveTo(bwx - 4, tipY - 3, tipX, tipY);
+        ctx.lineTo(tipX + 4, tipY - 3);
+        ctx.quadraticCurveTo(bwx + 8, bwy - 1, bwx + 6, bwy);
       }
       ctx.closePath();
       ctx.fill();
+      ctx.stroke();
+
+      // 2. 꼬리 깃털 (오른쪽 뒤편)
+      ctx.fillStyle = mainColor;
+      ctx.strokeStyle = outlineColor;
+      ctx.lineWidth = 1.8;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      const tx = ox + 22;
+      const ty = oy + 12;
+      ctx.moveTo(tx, ty - 2);
+      ctx.lineTo(ox + 34, ty - 6 + flap * 1.2);
+      ctx.lineTo(ox + 27, ty);
+      ctx.lineTo(ox + 33, ty + 2 - flap);
+      ctx.lineTo(ox + 26, ty + 4);
+      ctx.lineTo(ox + 30, ty + 7);
+      ctx.lineTo(tx, ty + 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // 3. 몸통 & 볏 & 머리 (외곽선 + 채우기)
+      ctx.fillStyle = mainColor;
+      ctx.strokeStyle = outlineColor;
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'round';
+
+      // 통통하고 유선형인 몸통
+      ctx.beginPath();
+      ctx.ellipse(ox + 16, oy + 13, 9.5, 6.5, -0.05, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // 머리 뒤 깃털 볏 (Crest)
+      ctx.beginPath();
+      ctx.moveTo(ox + 10, oy + 5);
+      ctx.quadraticCurveTo(ox + 13, oy - 2, ox + 15, oy - 1);
+      ctx.quadraticCurveTo(ox + 12, oy + 4, ox + 9, oy + 6);
+      ctx.fill();
+      ctx.stroke();
+
+      // 둥근 머리 (좌측 앞머리)
+      ctx.beginPath();
+      ctx.ellipse(ox + 8, oy + 9.5, 6.2, 5.8, -0.05, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // 가슴/배 깃털 (부드러운 연보라색 배면)
+      ctx.fillStyle = bellyColor;
+      ctx.beginPath();
+      ctx.ellipse(ox + 13, oy + 14.5, 6, 3.8, 0.1, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 4. 부리 (좌측을 향해 뾰족하게 튀어나온 주황색 부리)
+      ctx.fillStyle = beakColor;
+      ctx.strokeStyle = outlineColor;
+      ctx.lineWidth = 1.8;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(ox + 3.5, oy + 7.5);
+      ctx.lineTo(ox - 5, oy + 10.5); // 부리 끝 (왼쪽)
+      ctx.lineTo(ox + 3.5, oy + 13.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // 윗부리/아랫부리 분리선
+      ctx.beginPath();
+      ctx.moveTo(ox + 3.5, oy + 10.5);
+      ctx.lineTo(ox - 3, oy + 10.5);
+      ctx.stroke();
+
+      // 볼 터치 (귀여운 분홍빛)
+      ctx.fillStyle = 'rgba(235, 140, 180, 0.65)';
+      ctx.beginPath();
+      ctx.arc(ox + 9.5, oy + 12, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 5. 눈 (초롱초롱하고 또렷한 눈)
+      // 흰자
+      ctx.fillStyle = '#FFFFFF';
+      ctx.strokeStyle = outlineColor;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.ellipse(ox + 6.2, oy + 8.5, 2.5, 2.7, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // 눈동자 (플레이어 쪽인 좌측 전방을 응시)
+      ctx.fillStyle = '#180B20';
+      ctx.beginPath();
+      ctx.arc(ox + 5.5, oy + 8.5, 1.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 반사광 하이라이트
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(ox + 5.1, oy + 7.8, 0.65, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 6. 앞쪽 날개 (몸통 앞면에 겹쳐서 생동감 넘치게 펄럭임)
+      ctx.fillStyle = wingColor;
+      ctx.strokeStyle = outlineColor;
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'round';
+
+      const fwx = ox + 14;
+      const fwy = oy + 11;
+
+      ctx.beginPath();
+      ctx.moveTo(fwx, fwy);
+
+      if (flap > 0) {
+        // 날개 펄럭임 - 위로 솟구침
+        const tipY = fwy - 12 - flap * 6;
+        const tipX = fwx + 2 - flap * 2;
+        ctx.quadraticCurveTo(fwx - 5, tipY + 4, tipX - 1, tipY);
+        // 날개 깃털 마디 디테일
+        ctx.lineTo(tipX + 4, tipY + 4);
+        ctx.lineTo(tipX + 6, tipY + 8);
+        ctx.quadraticCurveTo(fwx + 8, fwy + 4, fwx, fwy);
+      } else {
+        // 날개 펄럭임 - 아래로 내림
+        const tipY = fwy + 8 + Math.abs(flap) * 7;
+        const tipX = fwx + 1;
+        ctx.quadraticCurveTo(fwx - 5, tipY - 4, tipX - 1, tipY);
+        // 날개 깃털 마디 디테일
+        ctx.lineTo(tipX + 4, tipY - 3);
+        ctx.lineTo(tipX + 6, tipY - 7);
+        ctx.quadraticCurveTo(fwx + 7, fwy - 2, fwx, fwy);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // 날개 깃털 하이라이트 선
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      if (flap > 0) {
+        ctx.moveTo(fwx + 1, fwy - 2);
+        ctx.lineTo(fwx + 2, fwy - 8 - flap * 3);
+      } else {
+        ctx.moveTo(fwx + 1, fwy + 2);
+        ctx.lineTo(fwx + 2, fwy + 5 + Math.abs(flap) * 3);
+      }
+      ctx.stroke();
+
+      ctx.restore();
     }
   }
 
@@ -1151,7 +1323,7 @@
       beep(600, 0.1, 'sine', 0.1); 
       setTimeout(()=>beep(800, 0.15, 'sine', 0.1), 100);
     } else if (type === 'speed-boost') {
-      effectTimers.speed = 2000; 
+      effectTimers.speed = 1333; // 원래 2000ms의 2/3
       beep(1000, 0.1, 'square', 0.05); 
       setTimeout(()=>beep(1200, 0.2, 'square', 0.05), 100);
     }
@@ -1173,7 +1345,7 @@
       ctx.fillStyle = '#60A5FA';
       ctx.font = 'bold 13px var(--font-display)';
       ctx.fillText('SPEED BOOST', LOGICAL_W/2 - 130, yPos);
-      ctx.fillRect(LOGICAL_W/2 - 30, yPos - 10, (effectTimers.speed / 2000) * barW, 10);
+      ctx.fillRect(LOGICAL_W/2 - 30, yPos - 10, (effectTimers.speed / 1333) * barW, 10);
     }
   }
 
@@ -1186,6 +1358,8 @@
   let nextSpawnDistance = 300;
   let lastTime = null;
   let groundOffset = 0;
+  let gameStartTime = null;  // 게임 시작 시각 (배경 스크롤용)
+  let bgScrollOffset = 0;   // 배경 수평 오프셋
 
   function updateReadouts() {
     scoreDisplay.textContent = String(Math.floor(score)).padStart(5, '0');
@@ -1201,6 +1375,8 @@
     gameSpeed = 6;
     nextSpawnDistance = 300;
     gameState = 'running';
+    gameStartTime = performance.now(); // 10초 카운트 시작
+    bgScrollOffset = 0;
     overlay.classList.add('hidden');
     updateReadouts();
 
@@ -1226,6 +1402,77 @@
   }
 
   function drawGround(t) {
+    // 장애물 경고 구역 — 배경별 색상 결정
+    // 배경 밝기에 따라 경고색과 글로우를 달리하여 어떤 배경에서도 잘 보이게
+    let warnFill, warnGlow, warnTop;
+    switch (currentBackgroundId) {
+      case 'desert':
+        // 사막: 배경이 어두운 적갈색 → 밝은 주황-노랑 계열
+        warnFill = '#FFB700'; warnGlow = '#FF8800'; warnTop = '#FFE066';
+        break;
+      case 'bright-night':
+        // 초저녁: 어두운 배경 → 핫핑크/자홍으로 대비
+        warnFill = '#FF1F6E'; warnGlow = '#FF1F6E'; warnTop = '#FF99CC';
+        break;
+      case 'spring':
+        // 봄낮: 연분홍/초록 → 진한 빨강에 흰 테두리
+        warnFill = '#EE1111'; warnGlow = '#FF4444'; warnTop = '#FFFFFF';
+        break;
+      case 'beach':
+        // 바다: 파란 하늘/모래 → 선명한 빨강
+        warnFill = '#FF2222'; warnGlow = '#FF6666'; warnTop = '#FFFFFF';
+        break;
+      default:
+        // 낮 등 밝은 배경 → 진한 빨강에 흰 상단선
+        warnFill = '#EE1111'; warnGlow = '#FF3333'; warnTop = '#FFFFFF';
+    }
+
+    // 경고 거리: 고정 120px (너비 원래대로)
+    const WARN_DIST = 120;
+    const WARN_H = 7;
+    // 2초 빠른 예고: 장애물이 화면 밖에 있어도 이 범위 안이면 오른쪽 끝에 경고 표시
+    const LEAD = Math.round(gameSpeed * 60 * 2); // 2초분 픽셀 (speed6 → 약 720px)
+
+    for (let i = 0; i < obstacles.length; i++) {
+      const ob = obstacles[i];
+      if (ob.x + ob.width < 0) continue; // 이미 지나간 장애물
+      // LEAD 범위 밖이면 무시
+      if (ob.x - WARN_DIST > LOGICAL_W + LEAD) continue;
+
+      let drawLeft, drawRight;
+      if (ob.x - WARN_DIST >= LOGICAL_W) {
+        // 장애물이 아직 화면 밖: 오른쪽 끝에 고정 표시
+        drawLeft = LOGICAL_W - WARN_DIST;
+        drawRight = LOGICAL_W;
+      } else {
+        drawLeft  = Math.max(0, ob.x - WARN_DIST);
+        drawRight = Math.min(ob.x, LOGICAL_W);
+      }
+      const clampedW = drawRight - drawLeft;
+      if (clampedW <= 0) continue;
+
+      // 근접도 (0=멀리, 1=바로 앞)
+      const dist = Math.max(0, ob.x - dino.x - 50);
+      const maxDist = LEAD + WARN_DIST;
+      const proximity = Math.min(1, Math.max(0, 1 - dist / maxDist));
+      const baseAlpha = 0.35 + 0.55 * proximity;
+      const glowStr  = 3 + proximity * 14;
+
+      ctx.save();
+      ctx.shadowBlur  = glowStr;
+      ctx.shadowColor = warnGlow;
+      ctx.globalAlpha = Math.min(1, baseAlpha);
+      ctx.fillStyle   = warnFill;
+      ctx.fillRect(drawLeft, GROUND_Y - WARN_H + 2, clampedW, WARN_H);
+
+      // 상단 밝은 테두리선
+      ctx.shadowBlur  = 0;
+      ctx.globalAlpha = Math.min(1, baseAlpha * 1.3);
+      ctx.fillStyle   = warnTop;
+      ctx.fillRect(drawLeft, GROUND_Y - WARN_H + 2, clampedW, 2);
+      ctx.restore();
+    }
+
     ctx.strokeStyle = 'rgba(0,0,0,0.35)';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -1252,8 +1499,25 @@
     const dtRealMs = timestamp - lastTime;
     lastTime = timestamp;
 
+    // 10초 후 배경 스크롤 오프셋 계산
+    if (gameState === 'running' && gameStartTime !== null) {
+      const elapsed = timestamp - gameStartTime;
+      if (elapsed > 10000) {
+        const scrollElapsed = elapsed - 10000;
+        // 서서히 속도 증가 (최대 gameSpeed의 0.3배)
+        const scrollSpeed = Math.min(gameSpeed * 0.3, (scrollElapsed / 5000) * gameSpeed * 0.3);
+        bgScrollOffset += scrollSpeed * dt;
+      }
+    }
+
     ctx.clearRect(0, 0, LOGICAL_W, LOGICAL_H);
+    // 배경 스크롤: ctx를 translateX로 오프셋 적용 후 원위치
+    ctx.save();
+    ctx.translate(-bgScrollOffset % LOGICAL_W, 0);
     drawBackground(timestamp);
+    ctx.translate(LOGICAL_W, 0);
+    drawBackground(timestamp);
+    ctx.restore();
 
     if (gameState === 'running') {
       if (effectTimers.jump > 0) effectTimers.jump -= dtRealMs;
