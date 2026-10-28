@@ -8,5 +8,4 @@ dist-server
 output
 test-results
 docs/screenshots
-temp_gameFile
 *.log
