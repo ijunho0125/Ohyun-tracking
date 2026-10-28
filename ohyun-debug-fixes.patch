@@ -1,0 +1,155 @@
+diff --git a/server/character-api.ts b/server/character-api.ts
+index 4064924..ed45c4e 100644
+--- a/server/character-api.ts
++++ b/server/character-api.ts
+@@ -68,10 +68,10 @@ export function createCharacterApi(directory=resolve(process.env.CHARACTER_DATA_
+       }
+       if (request.method==='GET' && path==='/api/characters/events') {
+         // Register and read without yielding between the snapshot and subscription.
+-        await load();
++        const snapshot = await load();
+         response.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no'});
+         clients.add(response);
+-        response.write(`retry: 1000\ndata: ${JSON.stringify(selected(await load()))}\n\n`);
++        response.write(`retry: 1000\ndata: ${JSON.stringify(selected(snapshot))}\n\n`);
+         response.on('close',()=>clients.delete(response));
+         return true;
+       }
+diff --git a/src/App.tsx b/src/App.tsx
+index da84e42..a6e285a 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -74,7 +74,7 @@ export default function App(){
+       <nav aria-label="주요 메뉴">{([{id:'lobby',name:'게임 로비'},{id:'character',name:'내 그림'},{id:'tutorial',name:'튜토리얼'},{id:'lab',name:'기술 체험관'}] as const).map(n=><button data-hand key={n.id} aria-current={page===n.id?'page':undefined} onClick={()=>navigate(n.id)}>{n.name}</button>)}</nav>
+       <button data-hand className="header-settings" onClick={()=>setShowSettings(true)}><Settings2 size={20}/><span>설정·도움말</span></button></div></header>}
+     <main tabIndex={-1} id="main-content" className={`page-content content-${page}`}><Suspense fallback={<p role="status">화면을 불러오는 중…</p>}>
+-    {page==='lobby'?<>      <section className="lobby-games" aria-labelledby="games-title"><div className="section-heading"><div><h1 id="games-title">오늘은 어떤 게임을 할까요?</h1><p>손을 펴서 가리키고, 주먹으로 선택해요.</p></div><div className="lobby-status"><span className={`connection-state ${camera.status==='ready'?'connected':''}`}><span/>{camera.status==='ready'?'카메라 연결됨':'키보드로도 플레이 가능'}</span><LobbyMusic ref={lobbyMusic} active={page==='lobby'}/></div></div><div className="games-grid">{(['dino','tetris','balance'] as const).map(id=><button data-hand className={`game-card ${id}`} key={id} aria-label={`${gameInfo[id].name} 선택`} onClick={()=>openGame(id)}><div className="art-container"><GameArtwork id={id}/><span className="game-type">{id==='tetris'?'손과 몸으로':'몸을 움직여'}</span></div><div className="game-card-body"><div className="game-title"><h3>{gameInfo[id].name}</h3><span><ArrowUpRight size={24}/></span></div><p>{gameInfo[id].description}</p><div className="card-bottom"><span>{id==='dino'?'점프 · 숙이기':id==='tetris'?'주먹 이동 · 점프 회전 · 앉기 낙하':'상체 기울이기 · 균형'}</span><span className="card-select-label">선택하기<ArrowRight size={16}/></span></div></div></button>)}</div></section>
++    {page==='lobby'?<>      <section className="lobby-games" aria-labelledby="games-title"><div className="section-heading"><div><h1 id="games-title">오늘은 어떤 게임을 할까요?</h1><p>손을 펴서 가리키고, 주먹으로 선택해요.</p></div><div className="lobby-status"><span className={`connection-state ${camera.status==='ready'?'connected':''}`}><span/>{camera.status==='ready'?'카메라 연결됨':'키보드로도 플레이 가능'}</span><LobbyMusic ref={lobbyMusic} active={page==='lobby'}/></div></div><div className="games-grid">{(['dino','tetris','balance'] as const).map(id=><button data-hand className={`game-card ${id}`} key={id} aria-label={`${gameInfo[id].name} 선택`} onClick={()=>openGame(id)}><div className="art-container"><GameArtwork id={id}/><span className="game-type">{id==='tetris'?'손과 몸으로':'몸을 움직여'}</span></div><div className="game-card-body"><div className="game-title"><h3>{gameInfo[id].name}</h3><span><ArrowUpRight size={24}/></span></div><p>{gameInfo[id].description}</p><div className="card-bottom"><span>{id==='dino'?'점프 · 숙이기':id==='tetris'?'팔 뻗기 · 점프 회전 · 앉기 낙하':'상체 기울이기 · 균형'}</span><span className="card-select-label">선택하기<ArrowRight size={16}/></span></div></div></button>)}</div></section>
+       <section className="lobby-camera"><button data-hand className="primary camera-connect-action" disabled={['requesting','loading'].includes(camera.status)} onClick={connect}><Camera size={24}/>{camera.status==='ready'?'카메라 다시 연결':'카메라 연결하기'}</button><CameraPanel camera={camera} frame={frame} connect={connect}/></section>
+     </>:page==='game'?<GameView immersive key={game} id={game} settings={settings} frame={frame} camera={camera} character={character} connect={connect} back={()=>navigate('lobby')} editCharacter={()=>navigate('character')} onPhase={setGamePhase}/>:page==='character'?<CharacterEditor settings={settings} selected={character} onSelect={setCharacter} onStrengthChange={value=>updateSettings({...settings,strength:value})}/>:page==='tutorial'?<Tutorial settings={settings} camera={camera} frame={frame} cursor={cursor} character={character} connect={connect} onPhase={setGamePhase} onStage={setTutorialStage} initialGame={game} done={()=>navigate('lobby')}/>:<Lab camera={camera} frame={frame} settings={settings} apply={updateSettings} connect={connect}/>}</Suspense></main>
+     {page!=='game'&&<footer className="app-footer"><span>OHYUN HIGH SCHOOL <b>Computing Club</b></span><span><ShieldCheck size={17}/>카메라 영상은 내 기기에서만 처리해요.</span><button data-hand onClick={()=>setShowSettings(true)}>도움말<ArrowRight size={16}/></button></footer>}
+diff --git a/src/components/SettingsView.tsx b/src/components/SettingsView.tsx
+index 111b0b3..117cfea 100644
+--- a/src/components/SettingsView.tsx
++++ b/src/components/SettingsView.tsx
+@@ -11,6 +11,6 @@ export function SettingsView({settings,change,camera,connect}:{settings:Settings
+     <div className="view-tabs" aria-label="설정 항목">{["카메라","손 조작","게임","도움말"].map((name,i)=><button data-hand key={name} className={tab===i?"active":""} onClick={()=>setTab(i)}>{name}</button>)}</div><div className={`settings-grid settings-tab-${tab}`}><section className="panel settings-panel"><h3><Camera size={22}/>카메라</h3><label>카메라 선택<select value={settings.deviceId} onChange={e=>set('deviceId',e.target.value)}><option value="">기본 카메라</option>{devices.map((d,i)=><option key={d.deviceId||i} value={d.deviceId}>{d.label||`카메라 ${i+1}`}</option>)}</select></label><label>입력 해상도<select value={settings.resolution} onChange={e=>set('resolution',+e.target.value)}><option value="480">480 × 360 · 가볍게</option><option value="640">640 × 480 · 권장</option><option value="960">960 × 720 · 선명하게</option></select></label><label>최대 인식 빈도<select value={settings.frequency} onChange={e=>set('frequency',+e.target.value)}><option value="10">초당 10회</option><option value="20">초당 20회</option><option value="30">초당 30회 · 빠른 반응</option></select></label><p className="subtle">실제 인식 속도는 기기에 따라 달라요. 카메라·해상도 변경 후 다시 연결해주세요.</p><div className="button-row"><button data-hand className="small-button" onClick={connect}><RefreshCw size={18}/>다시 연결</button><button data-hand className="text-button" onClick={()=>camera.stop()}>카메라 끄기</button></div></section>
+     <section className="panel settings-panel"><h3>손바닥 커서와 주먹 선택</h3><label>메뉴를 조작할 손<select value={settings.hand} onChange={e=>set('hand',e.target.value as Settings['hand'])}><option value="Right">오른손</option><option value="Left">왼손</option></select></label><p className="subtle">손을 펴서 이동 → 머무르기 → 주먹으로 한 번 선택 → 다시 손 펴기. 지정한 손만 커서를 움직여요.</p><label>버튼 위 머무르기 {settings.dwellMs}ms<input type="range" min="100" max="700" step="20" value={settings.dwellMs} onChange={e=>set('dwellMs',+e.target.value)}/></label><label>주먹 유지 시간 {settings.fistHoldMs}ms<input type="range" min="100" max="600" step="20" value={settings.fistHoldMs} onChange={e=>set('fistHoldMs',+e.target.value)}/></label><label>주먹 확인 연속 프레임 {settings.fistFrames}<input type="range" min="2" max="6" step="1" value={settings.fistFrames} onChange={e=>set('fistFrames',+e.target.value)}/></label><label>손 펴기 확인 프레임 {settings.openFrames}<input type="range" min="2" max="6" step="1" value={settings.openFrames} onChange={e=>set('openFrames',+e.target.value)}/></label><label>커서 반응 계수 {settings.smoothing.toFixed(2)}<input type="range" min=".1" max=".9" step=".05" value={settings.smoothing} onChange={e=>set('smoothing',+e.target.value)}/></label><p className="subtle">낮으면 부드럽게, 높으면 빠르게 따라와요. 카메라 중앙 영역의 움직임으로 화면 가장자리까지 닿을 수 있어요.</p></section>
+     <section className="panel settings-panel"><h3>게임 조작</h3><p className="subtle">테트리스: 왼팔을 왼쪽으로 뻗어 ← 이동 · 오른팔을 오른쪽으로 뻗어 → 이동 · 점프 회전 · 앉기 빠른 낙하.</p><p className="subtle">양팔과 몸이 화면에 보이게 서서 기준 자세를 맞춰요. 한쪽 팔을 옆으로 뻗어 유지하면 계속 이동하고, 양팔을 동시에 뻗으면 멈춰요. 점프하면 한 번 회전하고, 앉아 있는 동안 빠르게 내려가요.</p><label>병아리 질주 게임 모션 조작<select value={settings.dinoMode} onChange={e=>set('dinoMode',e.target.value as Settings['dinoMode'])}><option value="body">몸의 상승으로 점프</option><option value="seated">앉아서 · 손 올려 점프</option></select></label><p className="subtle">모션 모드는 장애물이 하나씩 나와요. 앉은 모드는 손 올려 점프만으로 플레이해요.</p><label>병아리 질주 게임 속도 {settings.dinoSpeed}<input type="range" min="220" max="380" step="10" value={settings.dinoSpeed} onChange={e=>set('dinoSpeed',+e.target.value)}/></label><label>장애물 최소 간격 {settings.obstacleGap.toFixed(2)}초<input type="range" min=".6" max="5" step=".05" value={settings.obstacleGap} onChange={e=>set('obstacleGap',+e.target.value)}/></label><label>그림 움직임 강도<select value={settings.strength} onChange={e=>set('strength',+e.target.value)}><option value=".5">은은하게</option><option value="1">보통</option><option value="1.5">과장되게</option></select></label></section>
+-    <section className="panel help-panel"><h3><ShieldCheck size={22}/>도움말과 개인정보</h3><details name="help-topics" open><summary>카메라가 켜지지 않아요</summary><p>주소창에서 카메라 권한을 허용해주세요. 다른 앱이 카메라를 사용 중인지 확인하고, localhost 또는 HTTPS 주소에서 접속해주세요. 키보드로도 플레이할 수 있어요.</p></details><details name="help-topics"><summary>주먹 선택이 잘 안 돼요</summary><p>설정한 손 전체가 보이게 하고 손을 먼저 펴주세요. 카드 위에 머문 뒤 주먹을 쥐어요. 밝은 곳에서 손이 너무 작게 보이지 않도록 거리를 조절해보세요.</p></details><details name="help-topics"><summary>게임 중 메뉴를 누를 수 없어요</summary><p>게임 입력과 메뉴 선택이 겹치지 않도록 연습·플레이 중 메뉴 커서는 쉬어요. Esc 또는 일시정지 버튼으로 멈춘 뒤 손을 펴면 메뉴 선택을 다시 사용할 수 있어요.</p></details><details name="help-topics"><summary>영상과 그림은 어디에 저장되나요?</summary><p>카메라 영상과 좌표는 녹화하거나 서버로 보내지 않아요. 그림은 이 브라우저의 IndexedDB, 설정과 최고 기록은 로컬 저장소에 보관해요. 브라우저 데이터를 지우면 함께 삭제돼요.</p></details><details name="help-topics"><summary>몸 인식과 점프가 잘 안 돼요</summary><p>어깨와 골반이 보이게 떨어져 서고 기준 자세를 다시 맞춰주세요. 카메라 각도에 따라 오차가 생길 수 있어요. 병아리 질주 게임은 앉아서 손 올리기 모드로 바꿀 수 있어요.</p></details></section></div><p role="status" className="status-message">{message}</p></>;
++    <section className="panel help-panel"><h3><ShieldCheck size={22}/>도움말과 개인정보</h3><details name="help-topics" open><summary>카메라가 켜지지 않아요</summary><p>주소창에서 카메라 권한을 허용해주세요. 다른 앱이 카메라를 사용 중인지 확인하고, localhost 또는 HTTPS 주소에서 접속해주세요. 키보드로도 플레이할 수 있어요.</p></details><details name="help-topics"><summary>주먹 선택이 잘 안 돼요</summary><p>설정한 손 전체가 보이게 하고 손을 먼저 펴주세요. 카드 위에 머문 뒤 주먹을 쥐어요. 밝은 곳에서 손이 너무 작게 보이지 않도록 거리를 조절해보세요.</p></details><details name="help-topics"><summary>게임 중 메뉴를 누를 수 없어요</summary><p>게임 입력과 메뉴 선택이 겹치지 않도록 연습·플레이 중 메뉴 커서는 쉬어요. Esc 또는 일시정지 버튼으로 멈춘 뒤 손을 펴면 메뉴 선택을 다시 사용할 수 있어요.</p></details><details name="help-topics"><summary>영상과 그림은 어디에 저장되나요?</summary><p>카메라 영상과 좌표는 녹화하거나 서버로 보내지 않아요. 저장한 그림은 다른 기기와 공유할 수 있도록 서버에 보관하며, 브라우저 데이터를 지워도 남아요. 그림은 보관함에서 삭제할 수 있어요. 설정과 최고 기록은 이 브라우저의 로컬 저장소에 보관해요.</p></details><details name="help-topics"><summary>몸 인식과 점프가 잘 안 돼요</summary><p>어깨와 골반이 보이게 떨어져 서고 기준 자세를 다시 맞춰주세요. 카메라 각도에 따라 오차가 생길 수 있어요. 병아리 질주 게임은 앉아서 손 올리기 모드로 바꿀 수 있어요.</p></details></section></div><p role="status" className="status-message">{message}</p></>;
+ }
+ 
+diff --git a/tests/character-events.test.ts b/tests/character-events.test.ts
+new file mode 100644
+index 0000000..93998d1
+--- /dev/null
++++ b/tests/character-events.test.ts
+@@ -0,0 +1,94 @@
++import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
++import { createServer, type Server, type ServerResponse } from 'node:http';
++import { mkdtemp, readFile, rm } from 'node:fs/promises';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++import { createCharacterApi } from '../server/character-api';
++
++// Pause one catalog commit after its rename so the subscription can be opened
++// at the exact point where the new selection is about to be published.
++const renameGate = vi.hoisted(() => ({ next: null as null | ((release: () => void) => void) }));
++vi.mock('node:fs/promises', async importOriginal => {
++  const actual = await importOriginal<typeof import('node:fs/promises')>();
++  return {
++    ...actual,
++    rename: (from: Parameters<typeof actual.rename>[0], to: Parameters<typeof actual.rename>[1]) => {
++      const gate = renameGate.next;
++      if (!gate) return actual.rename(from, to);
++      renameGate.next = null;
++      return new Promise<void>((resolve, reject) => {
++        actual.rename(from, to).then(() => gate(resolve), reject);
++      });
++    },
++  };
++});
++
++describe('character event subscription', () => {
++  let directory: string, base: string, server: Server, api: ReturnType<typeof createCharacterApi>;
++  let releaseCommit = () => {};
++  const png = readFile(new URL('./fixtures/character.png', import.meta.url));
++
++  async function save(id: string) {
++    const image = new Blob([new Uint8Array(await png)], { type: 'image/png' });
++    const form = new FormData();
++    form.append('character', JSON.stringify({ id, name: id, flip: false, size: 1, footX: .5, footY: 1 }));
++    form.append('original', image, 'original.png');
++    form.append('processed', image, 'processed.png');
++    return fetch(base + '/api/characters', { method: 'POST', body: form });
++  }
++
++  beforeAll(async () => {
++    directory = await mkdtemp(join(tmpdir(), 'motion-character-events-'));
++    api = createCharacterApi(directory);
++    server = createServer((request, response) => {
++      if (request.url === '/api/characters/events') {
++        const writeHead = response.writeHead.bind(response);
++        response.writeHead = ((...args: Parameters<ServerResponse['writeHead']>) => {
++          const result = writeHead(...args);
++          releaseCommit();
++          return result;
++        }) as ServerResponse['writeHead'];
++      }
++      void api.handle(request, response);
++    });
++    await new Promise<void>(ready => server.listen(0, '127.0.0.1', ready));
++    const address = server.address();
++    if (!address || typeof address === 'string') throw new Error('server address');
++    base = `http://127.0.0.1:${address.port}`;
++  });
++
++  afterAll(async () => {
++    releaseCommit();
++    api.close();
++    server.closeAllConnections();
++    await new Promise<void>((done, reject) => server.close(error => error ? reject(error) : done()));
++    await rm(directory, { recursive: true, force: true });
++  });
++
++  it('never sends an older selection after a concurrent update', async () => {
++    expect((await save('first')).status).toBe(201);
++    const renameReached = new Promise<void>(ready => {
++      renameGate.next = release => { releaseCommit = release; ready(); };
++    });
++    const secondSave = save('second');
++    await renameReached;
++
++    const controller = new AbortController();
++    try {
++      const stream = await fetch(base + '/api/characters/events', { signal: controller.signal });
++      const reader = stream.body!.getReader();
++      let text = '';
++      while ((text.match(/^data: /gm) ?? []).length < 2) {
++        const chunk = await reader.read();
++        if (chunk.done) throw new Error('event stream ended early');
++        text += new TextDecoder().decode(chunk.value);
++      }
++      const ids = text.split('\n').filter(line => line.startsWith('data: '))
++        .map(line => JSON.parse(line.slice(6)).id);
++      expect(ids).toEqual(['first', 'second']);
++      expect((await secondSave).status).toBe(201);
++    } finally {
++      controller.abort();
++    }
++  });
++});
+diff --git a/tests/character-sync-browser-check.mjs b/tests/character-sync-browser-check.mjs
+index e402c47..ae23bf4 100644
+--- a/tests/character-sync-browser-check.mjs
++++ b/tests/character-sync-browser-check.mjs
+@@ -38,7 +38,7 @@ async function save(name){
+   const response=pad.waitForResponse(response=>response.url().endsWith('/api/characters') && response.request().method()==='POST');
+   await button(pad,'이미지 저장').click();
+   const result=await response;assert.equal(result.status(),201);const info=await result.json();savedIds.push(info.id);
+-  await pad.getByText('사이트에 저장하고 연결된 병아리 질주 게임에 적용했어요.',{exact:true}).waitFor();
++  await pad.getByText('저장 완료! 병아리 질주 게임에 바로 적용됐어요. 게임 시작 버튼을 눌러주세요.',{exact:true}).waitFor();
+   await current(name).waitFor({timeout:6000});
+   assert.equal((await state()).state,'idle','saving must not start the game');
+   return info;

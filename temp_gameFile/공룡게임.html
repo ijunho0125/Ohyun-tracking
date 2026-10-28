@@ -1445,8 +1445,9 @@
         warnFill = '#EE1111'; warnGlow = '#FF3333'; warnTop = '#FFFFFF';
     }
 
-    // 경고 거리: 고정 120px (너비 원래대로)
+    // 경고선은 장애물보다 진행 방향(왼쪽) 앞에 표시한다.
     const WARN_DIST = 120;
+    const WARN_FORWARD_OFFSET = 90;
     const WARN_H = 7;
     // 2초 빠른 예고: 장애물이 화면 밖에 있어도 이 범위 안이면 오른쪽 끝에 경고 표시
     const LEAD = Math.round(gameSpeed * 60 * 2); // 2초분 픽셀 (speed6 → 약 720px)
@@ -1455,16 +1456,18 @@
       const ob = obstacles[i];
       if (ob.x + ob.width < 0) continue; // 이미 지나간 장애물
       // LEAD 범위 밖이면 무시
-      if (ob.x - WARN_DIST > LOGICAL_W + LEAD) continue;
+      if (ob.x - WARN_DIST - WARN_FORWARD_OFFSET > LOGICAL_W + LEAD) continue;
 
       let drawLeft, drawRight;
-      if (ob.x - WARN_DIST >= LOGICAL_W) {
+      const warningEnd = ob.x - WARN_FORWARD_OFFSET;
+      const warningStart = warningEnd - WARN_DIST;
+      if (warningStart >= LOGICAL_W) {
         // 장애물이 아직 화면 밖: 오른쪽 끝에 고정 표시
         drawLeft = LOGICAL_W - WARN_DIST;
         drawRight = LOGICAL_W;
       } else {
-        drawLeft  = Math.max(0, ob.x - WARN_DIST);
-        drawRight = Math.min(ob.x, LOGICAL_W);
+        drawLeft  = Math.max(0, warningStart);
+        drawRight = Math.min(warningEnd, LOGICAL_W);
       }
       const clampedW = drawRight - drawLeft;
       if (clampedW <= 0) continue;

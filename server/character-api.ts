@@ -68,10 +68,10 @@ export function createCharacterApi(directory=resolve(process.env.CHARACTER_DATA_
       }
       if (request.method==='GET' && path==='/api/characters/events') {
         // Register and read without yielding between the snapshot and subscription.
-        await load();
+        const snapshot = await load();
         response.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no'});
         clients.add(response);
-        response.write(`retry: 1000\ndata: ${JSON.stringify(selected(await load()))}\n\n`);
+        response.write(`retry: 1000\ndata: ${JSON.stringify(selected(snapshot))}\n\n`);
         response.on('close',()=>clients.delete(response));
         return true;
       }
