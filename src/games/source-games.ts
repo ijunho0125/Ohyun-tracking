@@ -1,4 +1,4 @@
-import dinoHtml from '../../temp_gameFile/공룡게임.html?raw';
+import dinoHtml from '../../temp_gameFile/dino-game.html?raw';
 import tetrisHtml from './tetris-festival.html?raw';
 import runnerHtml from '../runner_balance_walk_with_picture_guide.html?raw';
 import type { Command, GameAdapter, GameEvent, GameState, Settings } from '../core/types';
