@@ -772,6 +772,7 @@
     dino.state = 'run';
     dino.duckHeld = false;
     effectTimers = { jump: 0, speed: 0 };
+    collisionGraceStartedAt = -Infinity;
   }
 
   function jump() {
@@ -970,6 +971,8 @@
   let obstacles = [];
   let items = [];
   let coinCount = 0;
+  const COLLISION_GRACE_MS = 50;
+  let collisionGraceStartedAt = -Infinity;
 
   function makeObstacle(type) {
     switch (type) {
@@ -1474,18 +1477,6 @@
       const glowStr  = 3 + proximity * 14;
 
       ctx.save();
-      // Jump timing window: start the jump when the obstacle enters this box.
-      const timingLeft = Math.max(dino.x + dino.width + 12, ob.x - 74);
-      const timingRight = Math.min(ob.x + ob.width + 10, LOGICAL_W);
-      if (timingRight > timingLeft) {
-        ctx.globalAlpha = Math.min(0.82, 0.3 + proximity * 0.5);
-        ctx.fillStyle = '#E00000';
-        ctx.fillRect(timingLeft, GROUND_Y - 52, timingRight - timingLeft, 46);
-        ctx.globalAlpha = Math.min(1, 0.65 + proximity * 0.3);
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(timingLeft, GROUND_Y - 52, timingRight - timingLeft, 46);
-      }
       ctx.shadowBlur  = glowStr;
       ctx.shadowColor = warnGlow;
       ctx.globalAlpha = Math.min(1, baseAlpha);
@@ -1593,9 +1584,11 @@
         }
         
         if (rectsOverlap(dHitbox, obstacleHitbox(ob))) {
-          endGame();
+          if (collisionGraceStartedAt === -Infinity) collisionGraceStartedAt = timestamp;
+          else if (timestamp - collisionGraceStartedAt >= COLLISION_GRACE_MS) endGame();
         }
       }
+      if (!obstacles.some(ob => rectsOverlap(dHitbox, obstacleHitbox(ob)))) collisionGraceStartedAt = -Infinity;
 
       if (Math.floor(score) > 0 && Math.floor(score) % 200 === 0 && Math.floor(score) !== lastMilestone) {
         lastMilestone = Math.floor(score);

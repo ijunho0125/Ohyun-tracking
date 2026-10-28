@@ -93,19 +93,21 @@ try {
     };
     for(const motion of [true,false]) for(const dinoMode of ['body','seated']) {
       const mode = (motion ? 'motion ' : 'keyboard ') + dinoMode;
-      fresh(motion,dinoMode); fixture.obstacle(); tick();
-      check(api.snapshot().state==='gameover',mode+': collision ends immediately after start');
+      fresh(motion,dinoMode); fixture.obstacle(500); tick();
+      check(api.snapshot().state==='running',mode+': collision starts with a grace window');
+      tick(8);
+      check(api.snapshot().state==='gameover',mode+': collision ends after 50ms grace');
 
-      fresh(motion,dinoMode); api.pause(); api.resume(); fixture.obstacle(); tick();
-      check(api.snapshot().state==='gameover',mode+': collision ends immediately after resume');
+      fresh(motion,dinoMode); api.pause(); api.resume(); fixture.obstacle(500); tick(8);
+      check(api.snapshot().state==='gameover',mode+': collision ends after resume grace');
 
       fresh(motion,dinoMode); api.command({type:'duck',value:true}); tick();
       check(api.snapshot().dino.state==='duck',mode+': crouch works');
-      fixture.obstacle(); tick();
+      fixture.obstacle(500); tick(6);
       check(api.snapshot().state==='gameover',mode+': crouching does not protect from collision');
 
       fresh(motion,dinoMode); api.command({type:'jump'}); fixture.obstacle(); tick();
-      check(api.snapshot().state==='gameover',mode+': jump takeoff does not grant protection');
+      check(api.snapshot().state==='running',mode+': jump can escape during collision grace');
 
       fresh(motion,dinoMode); api.command({type:'duck',value:true});tick();
       api.command({type:'duck',value:false}); api.command({type:'jump'});tick();
@@ -114,16 +116,16 @@ try {
       check(api.snapshot().dino.y<takeoffY,mode+': jump continues climbing');
       let flight=0; while(!api.snapshot().grounded&&flight++<90)tick();
       check(api.snapshot().grounded,mode+': jump lands');
-      fixture.obstacle();tick();
+      fixture.obstacle(500);tick(8);
       check(api.snapshot().state==='gameover',mode+': landing does not grant protection');
 
       fresh(motion,dinoMode); fixture.boost();
       check(api.snapshot().effects.speed===2000,mode+': speed item still grants speed boost');
       tick();check(JSON.stringify(fixture.effectUI())===JSON.stringify([['text','SPEED BOOST']]),mode+': boost has no invincibility timer');
-      fixture.obstacle();tick();
+      fixture.obstacle(500);tick(8);
       check(api.snapshot().state==='gameover',mode+': boosted collision ends game');
 
-      fresh(motion,dinoMode); fixture.boostPickup(); fixture.obstacle();tick();
+      fresh(motion,dinoMode); fixture.boostPickup(); fixture.obstacle(500);tick(8);
       check(api.snapshot().effects.speed>0&&api.snapshot().state==='gameover',mode+': same-frame item pickup does not prevent collision');
       results.push(mode+': collision always ends the game; speed item only boosts speed');
     }
