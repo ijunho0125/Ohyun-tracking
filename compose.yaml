@@ -1,0 +1,14 @@
+services:
+  motion-arcade:
+    build:
+      context: .
+    ports:
+      - "5173:5173"
+    environment:
+      CHARACTER_DATA_DIR: /app/.character-data
+    volumes:
+      - character-data:/app/.character-data
+    restart: unless-stopped
+
+volumes:
+  character-data:

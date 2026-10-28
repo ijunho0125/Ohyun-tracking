@@ -15,6 +15,22 @@ npm.cmd run dev
 
 브라우저에서 **http://127.0.0.1:5173/** 를 엽니다. 이미 의존성과 모델이 있다면 마지막 명령만 실행하면 됩니다. PowerShell 실행 정책에 영향받지 않도록 `npm.cmd`를 사용합니다. 실행 중에는 터미널을 열어두세요. 포트 5173을 이미 사용한다면 기존 서버를 종료하거나 `vite.config.ts`에서 포트를 변경하세요.
 
+## Docker로 실행
+
+Docker Desktop이 설치되어 있다면 의존성 설치 없이 Compose로 실행할 수 있습니다.
+
+```powershell
+docker compose up --build -d
+```
+
+브라우저에서 **http://127.0.0.1:5173/** 를 엽니다. 첫 빌드에는 npm 패키지와 모델·WASM 자산 준비가 포함되므로 인터넷이 필요합니다. 캐릭터 그림과 선택 상태는 `character-data` Docker 볼륨에 보존됩니다. 종료하려면 다음을 실행하세요.
+
+```powershell
+docker compose down
+```
+
+패드 등 다른 기기에서 접속하려면 게임 컴퓨터의 LAN 주소로 `http://게임컴퓨터의LAN주소:5173/draw`를 여세요. Docker Desktop과 Windows 방화벽에서 포트 5173의 사설 네트워크 접근을 허용해야 할 수 있습니다.
+
 공식 모델 두 개는 `public/models`에 포함되어 있습니다. `setup:models`는 파일이 있으면 해시를 검증하고, 없으면 Google에서 모델을 내려받습니다. JS·WASM은 dev/build 스크립트가 설치된 패키지에서 복사합니다. 처음 설치하거나 모델을 내려받을 때 인터넷이 필요합니다.
 
 카메라는 localhost 또는 HTTPS 주소에서 브라우저 권한을 허용해야 사용할 수 있습니다. 일반 HTTP LAN 주소와 HTML 파일 직접 열기는 지원하지 않습니다. 카메라 없이 키보드로 세 게임을 할 수도 있습니다.

@@ -1,0 +1,12 @@
+.git
+.gitignore
+.dockerignore
+node_modules
+dist
+dist-server
+.character-data
+output
+test-results
+docs/screenshots
+temp_gameFile
+*.log
