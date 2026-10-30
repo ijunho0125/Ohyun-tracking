@@ -1,14 +1,16 @@
-import dinoHtml from '../../temp_gameFile/dino-game.html?raw';
+﻿import dinoHtml from '../../temp_gameFile/dino-game.html?raw';
+import catHtml from '../../temp_gameFile/ninja_rope.html?raw';
 import tetrisHtml from './tetris-festival.html?raw';
 import runnerHtml from '../runner_balance_walk_with_picture_guide.html?raw';
 import type { Command, GameAdapter, GameEvent, GameState, Settings } from '../core/types';
 import { drawCharacter, type CharacterVisual } from './character';
 
-type SourceId = 'dino' | 'tetris' | 'balance';
-type Snapshot = { state: string; score: number; coins?: number; grounded: boolean; angle?: number; angularVelocity?: number };
+type SourceId = 'dino' | 'tetris' | 'balance' | 'cat';
+type Snapshot = { state: string; score: number; coins?: number; grounded: boolean; angle?: number; angularVelocity?: number; wire?: boolean };
 type SourceAPI = {
   start(mode: string): void; pause(): void; resume(): void; reset(): void;
   command(command: Command): void; release(): void; advance(dt: number): void;
+  motionJump?(): boolean;
   snapshot(): Snapshot; practice(value: boolean): void; sound(value: boolean, context?: AudioContext, destination?: AudioNode): void;
   configure(settings: Settings, scene: string, motion?: boolean): void; dispose(): void;
   tetrisLeaderboard?(mode: string): {name:string; score:number; date:string}[];
@@ -113,13 +115,13 @@ window.motionGame = {
     if(c.type === 'move') game.goSide(c.value);
     if(c.type === 'rotate') game.rotate();
     if(c.type === 'hardDrop') game.hardDrop();
-    if(c.type === 'softDrop') { if(!c.value) { pressingDown = false; softDropLocked = false; hostSoftDropMs = 0; } else if(!pressingDown) { pressingDown = true; hostSoftDropMs = 0; if(game.goDown()) { game.score++; updateUI(); } } }
+    if(c.type === 'softDrop') { if(!c.value) { pressingDown = false; softDropLocked = false; hostSoftDropMs = 0; } else if(!pressingDown) { pressingDown = true; hostSoftDropMs = 0; if(game.goDown(true)) { game.score++; updateUI(); } } }
   },
   release() { pressingDown = false; softDropLocked = false; hostSoftDropMs = 0; },
   practice(value) { hostPractice = value; document.body.classList.toggle('practice',value); },
   configure() {},
   sound(value, context, destination) { if(context && !audioEngine.ctx) { audioEngine.ctx = context; hostSharedAudio = true; hostDestination = destination; } audioEngine.sfxEnabled = value; if(value) { audioEngine.init(); audioEngine.startBGM(); } else audioEngine.stopBGM(); },
-  advance(dt) { hostAccumulator += Math.min(dt,.05); while(hostAccumulator >= 1/60) { hostAccumulator -= 1/60; if(hostPractice && game.mode === 'HARD') game.obstacleTimer = 30; if(game.state === 'playing' && pressingDown) { hostSoftDropMs += 1000/60; if(hostSoftDropMs >= 50) { hostSoftDropMs -= 50; if(game.goDown()) { game.score++; updateUI(); } } } game.update(1000/60); updateParticles(); drawBoard(); drawMascotCharacter(); } },
+  advance(dt) { hostAccumulator += Math.min(dt,.05); while(hostAccumulator >= 1/60) { hostAccumulator -= 1/60; if(hostPractice && game.mode === 'HARD') game.obstacleTimer = 30; if(game.state === 'playing' && pressingDown) { hostSoftDropMs += 1000/60; if(hostSoftDropMs >= 50) { hostSoftDropMs -= 50; if(game.goDown(true)) { game.score++; updateUI(); } } } game.update(1000/60); updateParticles(); drawBoard(); drawMascotCharacter(); } },
   snapshot() { return {state:game.state,score:game.score,grounded:game.isGrounded,lines:game.linesCleared,mode:game.mode,figure:game.currentPiece?{x:game.currentPiece.x,y:game.currentPiece.y,matrix:game.currentPiece.matrix.map(row=>[...row])}:null,field:game.field.map(row=>[...row]),obstacleTimer:game.obstacleTimer,pressingDown,softDropLocked,audio:{enabled:audioEngine.sfxEnabled,context:audioEngine.ctx?.state??'off',music:audioEngine.isPlayingBGM}}; },
   dispose() { this.pause(); game.state = 'disposed'; if(!hostSharedAudio) audioEngine.ctx?.close(); }
 };
@@ -180,14 +182,54 @@ window.motionGame = {
 gameLoop();
 `;
 
+const catBridge = `
+let hostAccumulator = 0, hostPractice = false, hostDestination = null, hostSharedAudio = false, hostCoins = 0;
+// A motion frame can arrive just after the cat has run off a roof. Keep a
+// short simulation-time window for that edge, but never after a jump or wire.
+let hostCoyote = 0, hostWasGrounded = false;
+function hostClearCoyote() { hostCoyote = 0; hostWasGrounded = false; }
+const hostSurface = document.createElement('main'); hostSurface.id = 'cat-host';
+const hostHud = document.createElement('div'); hostHud.id = 'cat-hud';
+for (const [label, value] of [['거리', distanceText], ['콤보', comboText]]) {
+  const item = document.createElement('span'); item.append(document.createTextNode(label + ' '), value); hostHud.append(item);
+}
+hostSurface.append(canvas, hostHud); document.body.append(hostSurface);
+const originalCatInit = sound.init.bind(sound);
+sound.init = function () { if (!this.muted) originalCatInit(); };
+window.motionGame = {
+  start() { hostCoins = 0; hostClearCoyote(); startGame(); if (sound.muted) sound.stopBGM(); },
+  pause() { if (gameState === 'PLAYING') gameState = 'PAUSED'; hostClearCoyote(); this.release(); sound.stopBGM(); },
+  resume() { if (gameState === 'PAUSED') { gameState = 'PLAYING'; if (!sound.muted && sound.ctx) sound.startBGM(); } },
+  reset() { this.pause(); gameState = 'START'; score = 0; distance = 0; cameraX = 0; hostCoins = 0; combo = 0; comboText.textContent = '0'; distanceText.textContent = '0m'; cat.reset(); generateInitialWorld(); render(); },
+  command(c) { if (gameState !== 'PLAYING') return; if (c.type === 'jump') { if (cat.isGrounded) { cat.jump(); hostClearCoyote(); } else if (cat.isWireAttached) { cat.detachWire(); hostClearCoyote(); } else { cat.tryAttachWire(); if (cat.isWireAttached) hostClearCoyote(); } } if (c.type === 'duck') window.isRightArmExtended = c.value; },
+  motionJump() {
+    if (gameState !== 'PLAYING' || cat.isWireAttached || !(cat.isGrounded || (hostCoyote > 0 && cat.vy >= 0))) return false;
+    // The native jump method requires ground contact; the coyote window is
+    // granted only after walking off a roof, so this is still a single jump.
+    cat.isGrounded = true; cat.jump(); hostClearCoyote(); return true;
+  },
+  release() { window.isRightArmExtended = false; },
+  practice(value) { hostPractice = value; },
+  configure() {},
+  sound(value, context, destination) { sound.muted = !value; if (context) { sound.ctx = context; hostSharedAudio = true; hostDestination = destination; } if (value && gameState === 'PLAYING' && sound.ctx) sound.startBGM(); else sound.stopBGM(); },
+  advance(dt) { hostAccumulator += Math.min(dt, .05); while (hostAccumulator >= 1/60) { hostAccumulator -= 1/60; updateGame(); if (gameState === 'PLAYING') { if (cat.isGrounded) hostCoyote = .15; else if (cat.isWireAttached || cat.vy < 0) hostCoyote = 0; else if (hostWasGrounded) hostCoyote = .15; else hostCoyote = Math.max(0, hostCoyote - 1/60); hostWasGrounded = cat.isGrounded; } render(); } },
+  snapshot() { return { state: gameState === 'GAMEOVER' ? 'gameover' : gameState, score, coins: hostCoins, grounded: cat.isGrounded, distance, speed: gameSpeed, combo, wire: cat.isWireAttached, cat: {x:cat.x,y:cat.y,vy:cat.vy}, audio: {enabled:!sound.muted, music:!!sound.bgmInterval} }; },
+  dispose() { this.pause(); gameState = 'DISPOSED'; if (!hostSharedAudio) sound.ctx?.close(); }
+};
+sound.muted = true; generateInitialWorld(); render();
+`;
+
 export function sourceDocument(id: SourceId): string {
-  let html = id === 'dino' ? dinoHtml : id === 'tetris' ? tetrisHtml : runnerHtml;
+  let html = id === 'dino' ? dinoHtml : id === 'tetris' ? tetrisHtml : id === 'cat' ? catHtml : runnerHtml;
   // The host owns styling, keyboard input and the one animation clock. No CDN
   // requests, independent keyboard listeners, or iframe animation loops remain.
   html = html.replace(/<script\b[^>]*\bsrc=[^>]*>[\s\S]*?<\/script>/gi, '')
     .replaceAll('gain.connect(audioCtx.destination)', 'gain.connect(hostDestination ?? audioCtx.destination)')
     .replaceAll('bgmMasterGain.connect(audioCtx.destination)', 'bgmMasterGain.connect(hostDestination ?? audioCtx.destination)')
     .replaceAll('gain.connect(this.ctx.destination)', 'gain.connect(hostDestination ?? this.ctx.destination)')
+    .replaceAll('kickGain.connect(this.ctx.destination)', 'kickGain.connect(hostDestination ?? this.ctx.destination)')
+    .replaceAll('bassGain.connect(this.ctx.destination)', 'bassGain.connect(hostDestination ?? this.ctx.destination)')
+    .replaceAll('melGain.connect(this.ctx.destination)', 'melGain.connect(hostDestination ?? this.ctx.destination)')
     .replace('if (!this.bgmEnabled || !this.ctx) return;', 'if (!this.bgmEnabled || !this.ctx || this.ctx.state !== "running") return;')
     .replace(/@import\s+url\([^;]+;/g, '')
     .replace(/requestAnimationFrame\((?:frame|render|gameLoop)\);/g, '')
@@ -221,6 +263,17 @@ export function sourceDocument(id: SourceId): string {
       .replace('document.body.appendChild(flash);', 'hostSurface.appendChild(flash);');
     const end = html.lastIndexOf('</script>');
     html = html.slice(0, end) + tetrisBridge + html.slice(end);
+  } else if (id === 'cat') {
+    html = html.replace(/window\.onload = function\(\) \{[\s\S]*?\n        \};/, '')
+      .replace('if (distance >= 1000) {', 'if (!hostPractice && distance >= 1000) {')
+      .replace('coin.collected = true;', 'coin.collected = true; hostCoins++;')
+      .replace('this.scarfAnim += 0.2;', 'this.previousBottom = this.y + this.height; this.scarfAnim += 0.2;')
+      .replace('this.y + this.height <= roofY + 40', 'this.previousBottom <= roofY')
+      .replace('if (cat.y > GAME_HEIGHT + 60) {', 'if (hostPractice && cat.y > GAME_HEIGHT + 60) { cameraX = 0; distance = 0; cat.reset(); generateInitialWorld(); }\n            if (cat.y > GAME_HEIGHT + 60) {');
+    const end = html.lastIndexOf('</script>');
+    html = html.slice(0, end) + catBridge + html.slice(end);
+    const css = `html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#0d0f18}body>div{display:none!important}#cat-host{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}#gameCanvas{display:block;width:100%;height:100%;object-fit:contain}#cat-hud{position:absolute;top:68px;left:50%;transform:translateX(-50%);display:flex;gap:8px;color:white;font:700 14px system-ui,sans-serif;pointer-events:none}#cat-hud span{background:#172536e8;border:1px solid #c98f42;border-radius:8px;padding:6px 10px;white-space:nowrap}`;
+    return html.replace('</head>', `<style>${css}</style></head>`);
   } else {
     html = html.replace('const audioCtx = new (window.AudioContext || window.webkitAudioContext)();', 'let audioCtx = null;')
       // Keep the ground and runner above the host's practice controls.
@@ -332,6 +385,21 @@ export function sourceDocument(id: SourceId): string {
     #fever-alert>div,#obstacle-alert{flex-direction:column;gap:2px}
     @media(max-width:800px){#festival-next,#source-info{width:100px;flex-basis:100px;padding:4px}#nextCanvas{width:88px}#tiger-gauge-dots{gap:0}#tiger-gauge-dots canvas{width:12px;height:12px}}
     @media(max-height:500px){#danceCanvas{height:120px}#source-info strong{font-size:8px}}
+    /* In portrait, stack the supporting panels beside the board instead of
+       asking three full-height columns to fit across a narrow screen. */
+    @media (orientation:portrait) and (max-width:800px){
+      #arcade-surface{padding:56px 8px 54px}
+      .practice #arcade-surface{padding-bottom:168px}
+      #festival-play{position:relative;display:block}
+      #board-container{position:absolute;left:calc((100% - 92px) / 2);top:50%;height:min(100%, calc((100vw - 108px) * 2));width:auto;transform:translate(-50%,-50%)}
+      #festival-next,#source-info{position:absolute;right:0;width:84px;padding:4px;gap:3px}
+      #festival-next{top:0}
+      #nextCanvas{width:58px}
+      #source-info{top:160px}
+      #danceCanvas{height:clamp(48px,12vh,90px)}
+      #festival-gauge{padding:3px 1px}
+      #tiger-gauge-dots canvas{width:10px;height:10px}
+    }
     ` : ''}
   `;
   return html.replace('</head>', `<style>${css}</style></head>`);
@@ -366,6 +434,7 @@ export class SourceGame implements GameAdapter {
   finish() { if(this.state==='disposed'||this.state==='over')return;this.api?.pause();this.state='over';this.emit({type:'over',score:this.score}); }
   dispose() { this.api?.dispose();this.api=null;this.state='disposed'; }
   command(command: Command) { if(this.state==='running'&&this.api){this.api.command(command);if(command.type==='jump')this.grounded=this.api.snapshot().grounded;} }
+  motionJump() { if(this.state!=='running'||!this.api?.motionJump)return false;const jumped=this.api.motionJump();this.grounded=this.api.snapshot().grounded;return jumped; }
   release() { this.api?.release(); }
   private syncPractice() {
     if (this.api && this.appliedPractice !== this.practicing) {
@@ -382,3 +451,4 @@ export class SourceGame implements GameAdapter {
   }
   render() {}
 }
+

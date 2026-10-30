@@ -29,7 +29,7 @@ export class PoseControls {
   jumpArmed = true; riseFrames = 0; neutralFrames = 0; duck = false; tilt = 0;
   beginCalibration() { this.baseline = null; this.samples = []; this.calibrating = true; this.reset(); }
   reset() { if(this.calibrating)this.samples = []; this.calibrationTime = -Infinity; this.previous = null; this.previousRaw = null; this.filtered = null; this.previousTime = 0; this.jumpArmed = false; this.riseFrames = 0; this.neutralFrames = 0; this.duck = false; this.tilt = 0; this.lastJumpTime = -Infinity; }
-  update(p: Landmark[], now: number, aspect: number, s: Settings, grounded: boolean) {
+  update(p: Landmark[], now: number, aspect: number, s: Settings, grounded: boolean, jumpSensitivity: 'normal' | 'high' = 'normal', allowAirborneJump = false) {
     const raw = poseMetrics(p, aspect);
     const commands: Command[] = [];
     const wristLost=s.dinoMode==='seated'&&[15,16].every(i=>!visible(p[i]));
@@ -62,11 +62,14 @@ export class PoseControls {
     const upS = (b.shoulderY - m.shoulderY) / b.size, upH = (b.hipY - m.hipY) / b.size;
     const rawUpS = (b.shoulderY - raw.shoulderY) / b.size, rawUpH = (b.hipY - raw.hipY) / b.size;
     const handRaised = raw.wristY < raw.shoulderY - b.size * .2;
-    // Standing or crouching on the ground can prepare the next jump. Requiring
+    // Standing or crouching can prepare the next jump. Requiring
     // an exact standing height would miss landing into a crouch and jumping again.
     // Raw and filtered heights must both be below the takeoff thresholds.
-    const neutral = s.dinoMode === 'seated' ? !handRaised : upS < .03 && upH < .03 && rawUpS < .03 && rawUpH < .03;
-    this.neutralFrames = neutral && grounded ? this.neutralFrames + 1 : 0;
+    const neutralHeight = jumpSensitivity === 'high' ? .025 : .03;
+    const neutral = s.dinoMode === 'seated' ? !handRaised : upS < neutralHeight && upH < neutralHeight && rawUpS < neutralHeight && rawUpH < neutralHeight;
+    // Some games buffer a physical jump before the character has landed. In
+    // that mode, rearm from the player's pose independently of game physics.
+    this.neutralFrames = neutral && (grounded || allowAirborneJump) ? this.neutralFrames + 1 : 0;
     if (this.neutralFrames >= 3) this.jumpArmed = true;
     // Inspired by hop-hop-jump-detection: use body-center velocity for an early
     // takeoff. Both torso levels must rise across two samples, so a single
@@ -78,14 +81,14 @@ export class PoseControls {
     // Filter residue after one bad sample must never count as another capture.
     // Keep the initial takeoff speed check, but allow a stationary second sample
     // at the apex so a brief, small jump is still detected at low camera rates.
-    const elevated = s.dinoMode === 'seated' ? handRaised : rawUpS > .06 && rawUpH > .04;
-    const rising = s.dinoMode === 'seated' || this.riseFrames > 0 || centerVelocity > .3;
+    const elevated = s.dinoMode === 'seated' ? handRaised : rawUpS > (jumpSensitivity === 'high' ? .045 : .06) && rawUpH > (jumpSensitivity === 'high' ? .03 : .04);
+    const rising = s.dinoMode === 'seated' || this.riseFrames > 0 || centerVelocity > (jumpSensitivity === 'high' ? .22 : .3);
     this.riseFrames = elevated && rising ? this.riseFrames + 1 : 0;
     const onset=this.previousRaw && b.shoulderY-this.previousRaw.shoulderY>b.size*.005 && b.hipY-this.previousRaw.hipY>b.size*.005;
-    const earlyJump=s.dinoMode==='body' && onset && rawUpS>.025 && rawUpH>.025 && centerRise>.04 && centerVelocity>.3;
+    const earlyJump=s.dinoMode==='body' && onset && rawUpS>(jumpSensitivity === 'high' ? .02 : .025) && rawUpH>(jumpSensitivity === 'high' ? .02 : .025) && centerRise>(jumpSensitivity === 'high' ? .032 : .04) && centerVelocity>(jumpSensitivity === 'high' ? .22 : .3);
     // A confirmed takeoff overrides the preceding crouch, which can linger in
     // the smoothed pose. Release duck before sending jump to the game.
-    const jumping = (this.riseFrames >= 2 || earlyJump) && this.jumpArmed && grounded && now-this.lastJumpTime>=160;
+    const jumping = (this.riseFrames >= 2 || earlyJump) && this.jumpArmed && (grounded || allowAirborneJump) && now-this.lastJumpTime>=160;
     if (jumping) { this.jumpArmed = false; this.neutralFrames=0; this.lastJumpTime=now; }
     const down = -upS;
     const knees=kneeAngle(p,aspect), centerDrop=-centerRise*b.size;

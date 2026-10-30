@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>오현고 정보축전 할로윈 부스 안내서 - A3 감성 인쇄용</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
+        
+        * {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+            box-sizing: border-box;
+        }
+
+        .font-jua {
+            font-family: 'Jua', cursive, sans-serif;
+        }
+
+        /* A3 규격 설정 (297mm x 420mm) */
+        @page {
+            size: A3 portrait;
+            margin: 0;
+        }
+
+        body {
+            background-color: #cbd5e1;
+            margin: 0;
+            padding: 0;
+            color: #0f172a;
+        }
+
+        /* 화면 및 A3 종이 인쇄용 파스텔 테마 스타일 */
+        .a3-page {
+            width: 297mm;
+            height: 420mm;
+            padding: 18mm 20mm;
+            margin: 25px auto;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow: hidden;
+            page-break-after: always;
+            page-break-inside: avoid;
+            border-radius: 20px;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12);
+        }
+
+        /* 1쪽: Warm Pumpkin Cream Pastel (따뜻한 파스텔 호박 크림) */
+        .page-motion {
+            background: linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 40%, #FEF3C7 100%);
+            border: 8px solid #F97316;
+        }
+
+        /* 2쪽: Soft Magic Lavender Pastel (은은한 파스텔 라벤더) */
+        .page-vibe {
+            background: linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 40%, #EDE9FE 100%);
+            border: 8px solid #9333EA;
+        }
+
+        /* 카드 입체감 디자인 */
+        .cute-card {
+            background: #FFFFFF;
+            border-radius: 18px;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
+        }
+
+        /* 인쇄 전용 스타일 */
+        @media print {
+            body {
+                background: none;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .a3-page {
+                margin: 0 !important;
+                box-shadow: none !important;
+                width: 297mm !important;
+                height: 420mm !important;
+                border-radius: 0 !important;
+                page-break-after: always !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 상단 컨트롤 바 (인쇄 시 숨김) -->
+    <div class="no-print sticky top-0 z-50 bg-slate-900 text-white py-3.5 px-8 shadow-2xl flex justify-between items-center border-b-4 border-amber-500">
+        <div class="flex items-center space-x-4">
+            <span class="bg-amber-500 text-slate-950 font-black text-xs px-3.5 py-1.5 rounded-full uppercase tracking-wider">
+                🎨 파스텔 감성 배경 · A3 종이 인쇄용 (총 2쪽)
+            </span>
+            <h1 class="text-base font-bold text-slate-100">
+                🐯 오현고등학교 정보축전 할로윈 부스 안내서
+            </h1>
+        </div>
+        <div class="flex items-center space-x-3">
+            <button onclick="downloadHTML()" class="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-black text-sm px-5 py-2.5 rounded-xl transition-all flex items-center shadow-lg transform hover:scale-105 active:scale-95">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                HTML 파일 다운로드
+            </button>
+            <button onclick="window.print()" class="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-black text-sm px-5 py-2.5 rounded-xl transition-all flex items-center shadow-lg transform hover:scale-105 active:scale-95">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 17h2a2 2 0 002-2v-4a2 2 0 002-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                </svg>
+                A3 인쇄 / PDF 저장
+            </button>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         [PAGE 1] 모션 인식 & 미디어파이프 (파스텔 호박 크림)
+         ========================================== -->
+    <div class="a3-page page-motion">
+        <div>
+            <!-- 헤더 영역 -->
+            <div class="flex justify-between items-center border-b-4 border-orange-400/40 pb-4 mb-5">
+                <div class="flex items-center space-x-5">
+                    <!-- 호박 마녀 오현 호랑이 SVG -->
+                    <div class="w-24 h-24 bg-gradient-to-br from-orange-500 to-amber-500 rounded-3xl p-1.5 flex items-center justify-center shadow-md border-3 border-orange-700 shrink-0 relative">
+                        <svg class="w-full h-full" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <!-- Witch Pumpkin Hat -->
+                            <path d="M50 8 L70 36 L30 36 Z" fill="#451a03"/>
+                            <path d="M20 36 C20 36, 50 30, 80 36 C80 36, 50 42, 20 36 Z" fill="#ea580c"/>
+                            <!-- Tiger Head -->
+                            <circle cx="50" cy="62" r="30" fill="#f59e0b"/>
+                            <circle cx="26" cy="42" r="8" fill="#d97706"/>
+                            <circle cx="26" cy="42" r="3.5" fill="#fffbeb"/>
+                            <circle cx="74" cy="42" r="8" fill="#d97706"/>
+                            <circle cx="74" cy="42" r="3.5" fill="#fffbeb"/>
+                            <!-- Motion Sensor Camera Headband -->
+                            <rect x="32" y="48" width="36" height="8" rx="4" fill="#1e293b"/>
+                            <circle cx="50" cy="52" r="3" fill="#38bdf8"/>
+                            <circle cx="40" cy="52" r="1.5" fill="#ef4444"/>
+                            <circle cx="60" cy="52" r="1.5" fill="#ef4444"/>
+                            <!-- Eyes -->
+                            <circle cx="38" cy="62" r="4" fill="#1e293b"/>
+                            <circle cx="62" cy="62" r="4" fill="#1e293b"/>
+                            <circle cx="39" cy="60" r="1.5" fill="#ffffff"/>
+                            <circle cx="63" cy="60" r="1.5" fill="#ffffff"/>
+                            <!-- Snout & Mouth -->
+                            <ellipse cx="50" cy="73" rx="11" ry="7" fill="#ffffff"/>
+                            <polygon points="50,68 46,64 54,64" fill="#1e293b"/>
+                            <path d="M44 73 Q50 77 56 73" stroke="#1e293b" stroke-width="2" fill="none"/>
+                        </svg>
+                        <span class="absolute -bottom-2.5 bg-orange-600 text-white text-[11px] font-black px-2.5 py-0.5 rounded-full shadow border border-white">
+                            모션 마녀 🐯
+                        </span>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center space-x-2.5 mb-1.5">
+                            <span class="bg-orange-600 text-white font-black text-xs px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">
+                                PAGE 01 · AI 비전 & 모션 인식
+                            </span>
+                            <span class="text-xs font-bold text-orange-950 bg-orange-200/80 border border-orange-300 px-3 py-1 rounded-full">
+                                🐯 오현고등학교 정보축전
+                            </span>
+                        </div>
+                        <h1 class="text-4xl font-black text-slate-900 tracking-tight font-jua">
+                            내 몸이 마법 컨트롤러! 모션 인식 & AI 미디어파이프 🎃
+                        </h1>
+                        <p class="text-lg font-bold text-orange-800 mt-0.5">
+                            키보드·마우스는 필요 없어! 웹캠 앞에서 손만 움직이면 게임이 반응해요!
+                        </p>
+                    </div>
+                </div>
+
+                <div class="text-right border-l-3 border-orange-300 pl-5">
+                    <span class="text-xs font-black text-orange-900/60 block tracking-widest">OHYEON HIGH SCHOOL</span>
+                    <span class="text-sm font-black text-orange-700 bg-white/80 border border-orange-300 px-3 py-1 rounded-lg inline-block mt-1 shadow-sm">
+                        👻 AI 소프트웨어 부스
+                    </span>
+                </div>
+            </div>
+
+            <!-- 미디어파이프 정의 박스 -->
+            <div class="bg-gradient-to-r from-orange-600 via-amber-600 to-orange-700 rounded-2xl p-5 mb-6 text-white shadow-md border-2 border-orange-400 flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <span class="text-4xl">📸</span>
+                    <div>
+                        <h3 class="text-xl font-black text-amber-200 font-jua">모션 인식과 미디어파이프(MediaPipe)가 뭐예요?</h3>
+                        <p class="text-base font-bold text-orange-100 mt-0.5">
+                            "카메라 영상으로 사람의 손과 몸 움직임을 똑똑하게 읽어내는 <span class="bg-slate-950 text-amber-300 px-2.5 py-0.5 rounded-md border border-amber-400/40">구글의 AI 인공지능 기술</span>이에요! <br>
+                            손가락 관절 21개, 몸 관절 33개의 위치를 0.01초 만에 찾아내서 내 몸을 게임 조작기로 만들어줘요!"
+                        </p>
+                    </div>
+                </div>
+                <div class="bg-white text-orange-950 font-black px-4 py-2.5 rounded-xl text-center shadow-sm shrink-0 border-2 border-orange-300">
+                    <span class="text-xs text-orange-600 block">핵심 기술</span>
+                    <span class="text-base font-jua text-orange-950">실시간 AI 포즈 추적 ⚡</span>
+                </div>
+            </div>
+
+            <!-- 1. 핵심 개념 2가지 -->
+            <div class="mb-6">
+                <h2 class="text-2xl font-black text-slate-900 font-jua flex items-center mb-3">
+                    <span class="w-3.5 h-7 bg-orange-600 rounded-full mr-2.5 shadow-sm inline-block"></span>
+                    1. 쉽게 이해하는 모션 인식과 미디어파이프
+                </h2>
+                <div class="grid grid-cols-2 gap-5">
+                    <!-- 모션 인식 카드 -->
+                    <div class="cute-card p-5 border-2 border-orange-200 bg-amber-50/50">
+                        <div class="flex items-center space-x-2.5 mb-2.5">
+                            <span class="text-2xl">🖐️</span>
+                            <h3 class="font-black text-xl text-orange-950 font-jua">모션 인식 (Motion Recognition)</h3>
+                        </div>
+                        <p class="text-sm text-slate-700 font-bold leading-relaxed">
+                            사람의 손짓, 몸짓, 점프 같은 움직임을 카메라가 관찰하고 분석해서 <span class="text-orange-700 underline underline-offset-2">게임 속 캐릭터의 움직임이나 명령어</span>로 바로 바꿔주는 기술이에요.
+                        </p>
+                    </div>
+
+                    <!-- 미디어파이프 카드 -->
+                    <div class="cute-card p-5 border-2 border-orange-200 bg-orange-50/50">
+                        <div class="flex items-center space-x-2.5 mb-2.5">
+                            <span class="text-2xl">🤖</span>
+                            <h3 class="font-black text-xl text-orange-950 font-jua">미디어파이프 (MediaPipe)</h3>
+                        </div>
+                        <p class="text-sm text-slate-700 font-bold leading-relaxed">
+                            구글(Google)이 개발한 고성능 AI 엔진이에요. 복잡하고 비싼 센서 없이 <span class="text-orange-700 underline underline-offset-2">일반 웹캠 카메라 하나만으로</span> 사람의 손가락 끝 위치와 신체 관절을 정밀하게 계산해 줘요!
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. AI가 내 몸을 읽는 4단계 과정 -->
+            <div class="mb-6">
+                <h2 class="text-2xl font-black text-slate-900 font-jua flex items-center mb-3">
+                    <span class="w-3.5 h-7 bg-orange-600 rounded-full mr-2.5 shadow-sm inline-block"></span>
+                    2. AI가 내 몸을 읽어서 게임에 적용하는 4단계 과정
+                </h2>
+                <div class="grid grid-cols-4 gap-3.5">
+                    <div class="cute-card p-4 border-2 border-orange-200 text-center">
+                        <span class="bg-orange-600 text-white font-black text-xs px-2.5 py-1 rounded-lg inline-block mb-2">STEP 1</span>
+                        <div class="text-3xl mb-1.5">🎥</div>
+                        <h4 class="font-black text-base text-slate-900 font-jua">웹캠 영상 촬영</h4>
+                        <p class="text-xs text-slate-600 mt-1 font-medium">카메라가 플레이어의 모습을 실시간으로 입력받아요</p>
+                    </div>
+                    <div class="cute-card p-4 border-2 border-orange-200 text-center">
+                        <span class="bg-orange-600 text-white font-black text-xs px-2.5 py-1 rounded-lg inline-block mb-2">STEP 2</span>
+                        <div class="text-3xl mb-1.5">📍</div>
+                        <h4 class="font-black text-base text-slate-900 font-jua">AI 관절점 찍기</h4>
+                        <p class="text-xs text-slate-600 mt-1 font-medium">손가락 21개, 몸 관절 33개 위치에 특징점(x, y)을 표시해요</p>
+                    </div>
+                    <div class="cute-card p-4 border-2 border-orange-200 text-center">
+                        <span class="bg-orange-600 text-white font-black text-xs px-2.5 py-1 rounded-lg inline-block mb-2">STEP 3</span>
+                        <div class="text-3xl mb-1.5">📐</div>
+                        <h4 class="font-black text-base text-slate-900 font-jua">움직임 계산</h4>
+                        <p class="text-xs text-slate-600 mt-1 font-medium">손을 쥐었는지, 머리 위로 손을 올렸는지 좌표 변화를 계산해요</p>
+                    </div>
+                    <div class="cute-card p-4 border-2 border-orange-200 text-center">
+                        <span class="bg-orange-600 text-white font-black text-xs px-2.5 py-1 rounded-lg inline-block mb-2">STEP 4</span>
+                        <div class="text-3xl mb-1.5">🎮</div>
+                        <h4 class="font-black text-base text-slate-900 font-jua">게임 동작 실행</h4>
+                        <p class="text-xs text-slate-600 mt-1 font-medium">게임 속 캐릭터가 점프하거나 허공의 타겟을 터뜨려요!</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. 우리 부스 게임에서의 실제 활용 예시 -->
+            <div class="mb-6">
+                <h2 class="text-2xl font-black text-slate-900 font-jua flex items-center mb-3">
+                    <span class="w-3.5 h-7 bg-orange-600 rounded-full mr-2.5 shadow-sm inline-block"></span>
+                    3. 우리 부스 게임에서는 이렇게 활용되었어요!
+                </h2>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="cute-card p-4 border-2 border-amber-300 bg-amber-50/40 flex items-start space-x-3.5">
+                        <span class="text-3xl shrink-0">☝️</span>
+                        <div>
+                            <h4 class="font-black text-base text-orange-950 font-jua">손가락 추적 (Hand Tracking)</h4>
+                            <p class="text-xs text-slate-700 mt-1 font-medium leading-relaxed">
+                                검지 손가락 끝을 허공에 대고 움직이면 **게임 속 마우스 커서**가 따라다녀요! 주먹을 쥐면 버튼이 클릭되고 타겟이 팡팡 터집니다!
+                            </p>
+                        </div>
+                    </div>
+                    <div class="cute-card p-4 border-2 border-amber-300 bg-amber-50/40 flex items-start space-x-3.5">
+                        <span class="text-3xl shrink-0">🏃‍♂️</span>
+                        <div>
+                            <h4 class="font-black text-base text-orange-950 font-jua">신체 포즈 추적 (Pose Detection)</h4>
+                            <p class="text-xs text-slate-700 mt-1 font-medium leading-relaxed">
+                                플레이어가 제자리에서 **풀쩍 점프하면 게임 속 캐릭터도 점프**하고, 몸을 좌우로 기울이면 장애물을 스릴 있게 피할 수 있어요!
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. 방문객 포인트 -->
+            <div class="bg-gradient-to-r from-amber-400 via-amber-500 to-orange-400 rounded-2xl p-4 text-slate-950 shadow-md mb-4 border-2 border-amber-300">
+                <div class="flex items-center space-x-3.5">
+                    <span class="text-3xl">🐯✨</span>
+                    <div>
+                        <h3 class="font-black text-base font-jua">방문객 여러분! 이건 알고 플레이하면 더 재미있어요!</h3>
+                        <p class="text-xs font-bold text-slate-950 mt-0.5 leading-normal">
+                            MediaPipe AI 덕분에 비싼 VR 장비나 특수 장갑 없이 **학교 컴퓨터에 있는 일반 웹캠 하나만으로** 완벽한 모션 인식 게임을 만들 수 있었답니다!
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 하단 푸터 -->
+        <div>
+            <div class="flex justify-between items-center text-xs text-slate-500 border-t-2 border-orange-200 pt-3">
+                <span class="font-bold">🐯 오현고등학교 정보축전 소프트웨어 & AI 체험 부스</span>
+                <span class="bg-orange-600 text-white font-black px-3 py-1 rounded-full">PAGE 1 / 2</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         [PAGE 2] 바이브 코딩 (은은한 파스텔 라벤더)
+         ========================================== -->
+    <div class="a3-page page-vibe">
+        <div>
+            <!-- 헤더 영역 -->
+            <div class="flex justify-between items-center border-b-4 border-purple-400/40 pb-4 mb-5">
+                <div class="flex items-center space-x-5">
+                    <!-- 마법사 코딩 오현 호랑이 SVG -->
+                    <div class="w-24 h-24 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-3xl p-1.5 flex items-center justify-center shadow-md border-3 border-purple-800 shrink-0 relative">
+                        <svg class="w-full h-full" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <!-- Wizard Hat -->
+                            <path d="M50 5 L75 38 L25 38 Z" fill="#3b0764"/>
+                            <path d="M15 38 C15 38, 50 30, 85 38 C85 38, 50 44, 15 38 Z" fill="#a855f7"/>
+                            <polygon points="50,15 53,21 60,21 55,25 57,32 50,28 43,32 45,25 40,21 47,21" fill="#f59e0b"/>
+                            <!-- Tiger Head -->
+                            <circle cx="50" cy="62" r="30" fill="#f59e0b"/>
+                            <circle cx="26" cy="42" r="8" fill="#d97706"/>
+                            <circle cx="26" cy="42" r="3.5" fill="#fffbeb"/>
+                            <circle cx="74" cy="42" r="8" fill="#d97706"/>
+                            <circle cx="74" cy="42" r="3.5" fill="#fffbeb"/>
+                            <!-- Wizard Glasses -->
+                            <circle cx="38" cy="58" r="7" stroke="#1e1b4b" stroke-width="2" fill="#ffffff" fill-opacity="0.3"/>
+                            <circle cx="62" cy="58" r="7" stroke="#1e1b4b" stroke-width="2" fill="#ffffff" fill-opacity="0.3"/>
+                            <line x1="45" y1="58" x2="55" y2="58" stroke="#1e1b4b" stroke-width="2"/>
+                            <!-- Cute Snout -->
+                            <ellipse cx="50" cy="74" rx="11" ry="7" fill="#ffffff"/>
+                            <polygon points="50,69 46,65 54,65" fill="#1e1b4b"/>
+                            <path d="M44 74 Q50 78 56 74" stroke="#1e1b4b" stroke-width="2" fill="none"/>
+                        </svg>
+                        <span class="absolute -bottom-2.5 bg-purple-700 text-white text-[11px] font-black px-2.5 py-0.5 rounded-full shadow border border-white">
+                            마법사 호랑이 🧙‍♂️
+                        </span>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center space-x-2.5 mb-1.5">
+                            <span class="bg-purple-700 text-white font-black text-xs px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">
+                                PAGE 02 · 차세대 AI 개발
+                            </span>
+                            <span class="text-xs font-bold text-purple-950 bg-purple-200/80 border border-purple-300 px-3 py-1 rounded-full">
+                                🐯 오현고등학교 정보축전
+                            </span>
+                        </div>
+                        <h1 class="text-4xl font-black text-slate-900 tracking-tight font-jua">
+                            말로 주문을 외우면 AI가 코딩 뚝딱! 바이브 코딩 🪄
+                        </h1>
+                        <p class="text-lg font-bold text-purple-800 mt-0.5">
+                            어려운 영어 문법을 안 외워도 OK! 내 생각과 대화로 완성하는 신개념 개발
+                        </p>
+                    </div>
+                </div>
+
+                <div class="text-right border-l-3 border-purple-300 pl-5">
+                    <span class="text-xs font-black text-purple-900/60 block tracking-widest">OHYEON HIGH SCHOOL</span>
+                    <span class="text-sm font-black text-purple-700 bg-white/80 border border-purple-300 px-3 py-1 rounded-lg inline-block mt-1 shadow-sm">
+                        👻 AI 소프트웨어 부스
+                    </span>
+                </div>
+            </div>
+
+            <!-- 바이브 코딩 정의 박스 -->
+            <div class="bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 rounded-2xl p-5 mb-6 text-white shadow-md border-2 border-purple-400 flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <span class="text-4xl">💻</span>
+                    <div>
+                        <h3 class="text-xl font-black text-amber-300 font-jua">바이브 코딩(Vibe Coding)이란 무엇인가요?</h3>
+                        <p class="text-base font-bold text-purple-100 mt-0.5">
+                            "어려운 영어 프로그래밍 코드를 외울 필요 없이, 친구와 이야기하듯이 <br>
+                            <span class="bg-slate-950 text-amber-300 px-2.5 py-0.5 rounded-md border border-amber-400/40">'AI야! 손가락으로 유령 터뜨리는 할로윈 게임 만들어줘!'</span> 라고 부탁하면 코드가 자동으로 완성돼요!"
+                        </p>
+                    </div>
+                </div>
+                <div class="bg-white text-purple-950 font-black px-4 py-2.5 rounded-xl text-center shadow-sm shrink-0 border-2 border-purple-300">
+                    <span class="text-xs text-purple-600 block">핵심 원리</span>
+                    <span class="text-base font-jua text-purple-900">상상이 코드가 됨! ✨</span>
+                </div>
+            </div>
+
+            <!-- 1. 옛날 코딩 vs 바이브 코딩 라이트 비교 -->
+            <div class="mb-6">
+                <h2 class="text-2xl font-black text-slate-900 font-jua flex items-center mb-3">
+                    <span class="w-3.5 h-7 bg-purple-700 rounded-full mr-2.5 shadow-sm inline-block"></span>
+                    1. 복잡했던 옛날 코딩 vs 신기한 AI 바이브 코딩
+                </h2>
+                <div class="grid grid-cols-2 gap-5">
+                    <!-- 옛날 방식 -->
+                    <div class="cute-card p-5 border-2 border-slate-300 bg-slate-50/70">
+                        <div class="flex items-center space-x-2.5 mb-3">
+                            <span class="text-2xl">🧛‍♂️</span>
+                            <h3 class="font-black text-xl text-slate-700 font-jua">옛날 프로그래밍 방식</h3>
+                        </div>
+                        <ul class="space-y-2.5 text-sm text-slate-700 font-semibold">
+                            <li class="flex items-center">
+                                <span class="text-red-500 font-black mr-2 text-base">✕</span>
+                                <span>어려운 영어 문법(C++, Python) 밤새 외우기</span>
+                            </li>
+                            <li class="flex items-center">
+                                <span class="text-red-500 font-black mr-2 text-base">✕</span>
+                                <span>오타 하나 때문에 며칠 동안 에러 찾기</span>
+                            </li>
+                            <li class="flex items-center">
+                                <span class="text-red-500 font-black mr-2 text-base">✕</span>
+                                <span>게임 하나 만드는데 몇 달씩 오래 걸림</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- 바이브 코딩 -->
+                    <div class="cute-card p-5 border-2 border-purple-300 bg-purple-50/50">
+                        <div class="flex items-center space-x-2.5 mb-3">
+                            <span class="text-2xl">🧙‍♂️</span>
+                            <h3 class="font-black text-xl text-purple-900 font-jua">바이브 코딩 (최신 AI 방식!)</h3>
+                        </div>
+                        <ul class="space-y-2.5 text-sm text-purple-950 font-bold">
+                            <li class="flex items-center">
+                                <span class="text-emerald-600 font-black mr-2 text-base">✓</span>
+                                <span>한국어로 "이런 게임 만들어줘!" 말하면 끝!</span>
+                            </li>
+                            <li class="flex items-center">
+                                <span class="text-emerald-600 font-black mr-2 text-base">✓</span>
+                                <span>에러가 나도 AI에게 보여주면 알아서 즉시 수정</span>
+                            </li>
+                            <li class="flex items-center">
+                                <span class="text-emerald-600 font-black mr-2 text-base">✓</span>
+                                <span>단 몇 시간 만에 재미있는 축제 게임 완성!</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. AI와 만드는 4단계 순서 -->
+            <div class="mb-6">
+                <h2 class="text-2xl font-black text-slate-900 font-jua flex items-center mb-3">
+                    <span class="w-3.5 h-7 bg-purple-700 rounded-full mr-2.5 shadow-sm inline-block"></span>
+                    2. AI와 함께 게임을 완성하는 4단계 순서
+                </h2>
+                <div class="grid grid-cols-2 gap-3.5">
+                    <div class="cute-card p-4 border-2 border-purple-200 flex items-center space-x-3.5">
+                        <div class="bg-purple-700 text-white font-black text-base w-9 h-9 rounded-xl flex items-center justify-center shrink-0">1</div>
+                        <div>
+                            <h4 class="font-black text-base text-slate-900 font-jua">💡 재미있는 아이디어 설명</h4>
+                            <p class="text-xs text-slate-600 mt-0.5 font-medium">"웹캠으로 손가락을 움직여 유령 호박을 터뜨리는 게임 제작해 줘!"</p>
+                        </div>
+                    </div>
+                    <div class="cute-card p-4 border-2 border-purple-200 flex items-center space-x-3.5">
+                        <div class="bg-purple-700 text-white font-black text-base w-9 h-9 rounded-xl flex items-center justify-center shrink-0">2</div>
+                        <div>
+                            <h4 class="font-black text-base text-slate-900 font-jua">🤖 AI가 3초 만에 코드 작성</h4>
+                            <p class="text-xs text-slate-600 mt-0.5 font-medium">AI가 카메라 연결 알고리즘과 화면 그래픽 코드를 스스로 구현해요</p>
+                        </div>
+                    </div>
+                    <div class="cute-card p-4 border-2 border-purple-200 flex items-center space-x-3.5">
+                        <div class="bg-purple-700 text-white font-black text-base w-9 h-9 rounded-xl flex items-center justify-center shrink-0">3</div>
+                        <div>
+                            <h4 class="font-black text-base text-slate-900 font-jua">🎮 테스트하고 추가 요청하기</h4>
+                            <p class="text-xs text-slate-600 mt-0.5 font-medium">직접 플레이해 보면서 "유령 속도를 조금 더 빠르게 해줘" 하고 조절해요</p>
+                        </div>
+                    </div>
+                    <div class="cute-card p-4 border-2 border-purple-200 flex items-center space-x-3.5">
+                        <div class="bg-purple-700 text-white font-black text-base w-9 h-9 rounded-xl flex items-center justify-center shrink-0">4</div>
+                        <div>
+                            <h4 class="font-black text-base text-slate-900 font-jua">🎉 멋진 할로윈 부스 게임 완성!</h4>
+                            <p class="text-xs text-slate-600 mt-0.5 font-medium">대화 몇 번 만에 초·중·고 학생들이 즐길 완벽한 소프트웨어 탄생!</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. 격려 카드 -->
+            <div class="bg-gradient-to-r from-amber-400 via-amber-500 to-orange-400 rounded-2xl p-4 text-slate-950 shadow-md mb-4 border-2 border-amber-300">
+                <div class="flex items-center space-x-3.5">
+                    <span class="text-3xl">🐯✨</span>
+                    <div>
+                        <h3 class="font-black text-base font-jua">방문객 여러분도 멋진 미래의 소프트웨어 개발자입니다!</h3>
+                        <p class="text-xs font-bold text-slate-950 mt-0.5 leading-normal">
+                            어려운 코딩 문법을 몰라도 괜찮아요! **"어떤 재밌는 것을 만들어볼까?" 하는 멋진 아이디어**만 있다면 <br>
+                            AI 마법사와 함께 누구나 나만의 게임을 개발할 수 있어요! 오현고 정보축전 부스에서 자유롭게 체험해 보세요!
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 하단 푸터 -->
+        <div>
+            <div class="flex justify-between items-center text-xs text-slate-500 border-t-2 border-purple-200 pt-3">
+                <span class="font-bold">🐯 오현고등학교 정보축전 소프트웨어 & AI 체험 부스</span>
+                <span class="bg-purple-700 text-white font-black px-3 py-1 rounded-full">PAGE 2 / 2</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- HTML 파일 직접 다운로드 스크립트 -->
+    <script>
+        function downloadHTML() {
+            const htmlContent = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+            const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '오현고_정보축전_할로윈_A3안내서.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>

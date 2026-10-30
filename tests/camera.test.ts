@@ -9,6 +9,36 @@ beforeEach(()=>{workers=[];video={muted:false,playsInline:false,readyState:0,pau
 afterEach(()=>vi.unstubAllGlobals());
 function stream(){const track={stop:vi.fn(),onended:null};return{track,value:{getTracks:()=>[track],getVideoTracks:()=>[track]}};}
 describe('camera lifecycle and retries',()=>{
+  it('pauses inference during keyboard play without closing the camera and resumes with a fresh frame',async()=>{
+    const capture=vi.fn().mockResolvedValue({close:vi.fn()}), preview=vi.fn();vi.stubGlobal('createImageBitmap',capture);
+    Object.assign(video,{readyState:2,currentTime:0,videoWidth:640,videoHeight:480});
+    const m=new CameraManager(defaults),s=stream();m.onFrame=preview;permission.mockResolvedValue(s.value);
+    await m.start();workers[0].send({type:'ready'});await Promise.resolve();
+    m.setTrackingEnabled(false);video.currentTime=.1;m.loop();workers[0].send({type:'result'});
+    expect(capture).toHaveBeenCalledOnce();expect(preview).not.toHaveBeenCalled();expect(m.hasResult).toBe(false);
+    expect(s.track.stop).not.toHaveBeenCalled();expect(workers[0].terminate).not.toHaveBeenCalled();
+    m.setTrackingEnabled(true);await Promise.resolve();expect(capture).toHaveBeenCalledTimes(2);
+    workers[0].send({type:'result'});expect(preview).toHaveBeenCalledOnce();expect(m.hasResult).toBe(true);m.stop();
+  });
+  it('discards an in-flight result after a rapid pause and resume',async()=>{
+    const capture=vi.fn().mockResolvedValue({close:vi.fn()}),preview=vi.fn();vi.stubGlobal('createImageBitmap',capture);
+    Object.assign(video,{readyState:2,currentTime:0,videoWidth:640,videoHeight:480});
+    const m=new CameraManager(defaults);m.onFrame=preview;permission.mockResolvedValue(stream().value);
+    await m.start();workers[0].send({type:'ready'});await Promise.resolve();
+    m.setTrackingEnabled(false);m.setTrackingEnabled(true);video.currentTime=.1;workers[0].send({type:'result'});await Promise.resolve();
+    expect(preview).not.toHaveBeenCalled();expect(capture).toHaveBeenCalledTimes(2);
+    workers[0].send({type:'result'});expect(preview).toHaveBeenCalledOnce();m.stop();
+  });
+  it('discards a pending bitmap and stale inference errors across suspension',async()=>{
+    let resolveBitmap!:(bitmap:{close:ReturnType<typeof vi.fn>})=>void;
+    const capture=vi.fn().mockImplementationOnce(()=>new Promise(resolve=>{resolveBitmap=resolve;})).mockResolvedValue({close:vi.fn()});vi.stubGlobal('createImageBitmap',capture);
+    Object.assign(video,{readyState:2,currentTime:0,videoWidth:640,videoHeight:480});
+    const m=new CameraManager(defaults),s=stream();permission.mockResolvedValue(s.value);
+    await m.start();workers[0].send({type:'ready'});m.setTrackingEnabled(false);m.setTrackingEnabled(true);
+    const bitmap={close:vi.fn()};resolveBitmap(bitmap);await Promise.resolve();await Promise.resolve();
+    expect(bitmap.close).toHaveBeenCalledOnce();expect(capture).toHaveBeenCalledTimes(2);
+    m.setTrackingEnabled(false);workers[0].send({type:'error'});expect(m.status).toBe('ready');expect(s.track.stop).not.toHaveBeenCalled();m.stop();
+  });
   it('distinguishes loaded models from the first inference during GPU warmup',async()=>{
     const m=new CameraManager(defaults);permission.mockResolvedValue(stream().value);await m.start();workers[0].send({type:'ready'});
     expect(m.status).toBe('ready');expect(m.hasResult).toBe(false);workers[0].send({type:'result'});expect(m.hasResult).toBe(true);

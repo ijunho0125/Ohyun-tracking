@@ -6,6 +6,26 @@ function body(shift=0,wrist=.8):Landmark[]{const p=Array.from({length:33},()=>({
 function scaledBody(size:number,rise=0){const points=body(-size*rise);for(const i of [23,24])points[i].y=.4+size-size*rise;return points;}
 function calibrated(points=body()){const p=new PoseControls();p.beginCalibration();for(let i=0;i<30;i++)p.update(points,i*50,4/3,s,true);return p;}
 describe('pose calibration and commands',()=>{
+  it.each([10,20,30])('recognizes a smaller cat jump without changing the normal threshold at %i Hz',frequency=>{
+    const cat=calibrated(),normal=calibrated(),step=1000/frequency;let now=1600;
+    for(let i=0;i<4;i++){now+=step;cat.update(body(),now,4/3,defaults,true,'high');normal.update(body(),now,4/3,defaults,true);}
+    const catCommands=[],normalCommands=[];
+    for(let i=0;i<4;i++){
+      now+=step;
+      catCommands.push(...cat.update(body(-.014),now,4/3,defaults,true,'high').commands);
+      normalCommands.push(...normal.update(body(-.014),now,4/3,defaults,true).commands);
+    }
+    expect(catCommands.filter(c=>c.type==='jump')).toHaveLength(1);
+    expect(normalCommands.filter(c=>c.type==='jump')).toHaveLength(0);
+    for(let i=0;i<5;i++)expect(cat.update(body(-.014),now+=step,4/3,defaults,false,'high').commands).not.toContainEqual({type:'jump'});
+  });
+  it.each([10,20,30])('rejects jitter and a single tracking spike in high sensitivity mode at %i Hz',frequency=>{
+    const p=calibrated(),step=1000/frequency;let now=1600;
+    for(let i=0;i<4;i++)p.update(body(),now+=step,4/3,defaults,true,'high');
+    for(let i=0;i<30;i++)expect(p.update(body(i%2?.008:-.008),now+=step,4/3,defaults,true,'high').commands).not.toContainEqual({type:'jump'});
+    expect(p.update(body(-.05),now+=step,4/3,defaults,true,'high').commands).not.toContainEqual({type:'jump'});
+    expect(p.update(body(),now+=step,4/3,defaults,true,'high').commands).not.toContainEqual({type:'jump'});
+  });
   it('keeps crouching for as long as the player remains crouched and releases when they stand',()=>{
     const p=calibrated();
     for(let time=1600;time<=6600;time+=50){
@@ -139,6 +159,25 @@ describe('pose calibration and commands',()=>{
       for(let i=0;i<16;i++)expect(p.update(body(-.021),now+=step,4/3,defaults,true).commands).not.toContainEqual({type:'jump'});
       for(let i=0;i<8;i++)p.update(body(),now+=step,4/3,defaults,true);
     }
+  });
+  it.each([10,20,30])('optionally recognizes a new physical jump before the game character lands at %i Hz',frequency=>{
+    const p=calibrated(),step=1000/frequency;let now=1600;
+    const update=(shift:number,grounded:boolean)=>p.update(body(shift),now+=step,4/3,defaults,grounded,'normal',true).commands;
+    for(let i=0;i<3;i++)update(0,true);
+    expect(update(-.021,true)).not.toContainEqual({type:'jump'});
+    expect(update(-.021,true)).toContainEqual({type:'jump'});
+    // The player lands and starts the next jump while the character remains airborne.
+    for(let i=0;i<3;i++)expect(update(0,false)).not.toContainEqual({type:'jump'});
+    expect(update(-.021,false)).not.toContainEqual({type:'jump'});
+    expect(update(-.021,false)).toContainEqual({type:'jump'});
+    for(let i=0;i<5;i++)expect(update(-.021,false)).not.toContainEqual({type:'jump'});
+  });
+  it.each([10,20,30])('still rejects a single tracking spike while airborne detection is enabled at %i Hz',frequency=>{
+    const p=calibrated(),step=1000/frequency;let now=1600;
+    const update=(shift:number)=>p.update(body(shift),now+=step,4/3,defaults,false,'normal',true).commands;
+    for(let i=0;i<4;i++)update(0);
+    expect(update(-.05)).not.toContainEqual({type:'jump'});
+    for(let i=0;i<4;i++)expect(update(0)).not.toContainEqual({type:'jump'});
   });
   it.each([10,20,30])('detects early takeoff at different camera distances at %i Hz',frequency=>{
     for(const size of [.12,.3,.5]){

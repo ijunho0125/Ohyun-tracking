@@ -36,25 +36,25 @@ function Preview({camera,frame,tracking,fresh}:{camera:CameraManager;frame:Motio
   return <div className="camera-screen" style={{aspectRatio:`${width} / ${height}`}}>
     <video ref={video} muted playsInline aria-label="좌우 반전된 카메라 영상"/><canvas ref={overlay} width={width} height={height} aria-label="실제 인식 관절점과 연결선"/>
     {camera.status!=='ready'&&<div className="camera-empty"><CameraOff size={30}/><strong>{camera.status==='loading'?'인식 모델 준비 중':camera.status==='requesting'?'카메라 권한을 기다려요':'카메라 연결 대기'}</strong><p>{camera.message||'내 손과 몸의 움직임을 여기서 확인해요.'}</p></div>}
-    {camera.status==='ready'&&<span className={`camera-badge ${fresh?'':'tracking-lost'}`}>{fresh?(camera.mode==='tetris'?'손·몸 인식 중':camera.mode==='hand'?(frame?.hands.length?'손 인식 중':'손을 찾는 중'):(frame?.pose.length?'몸 인식 중':'몸을 찾는 중')):'인식 중단 · 자세를 확인해주세요'}</span>}
+    {camera.status==='ready'&&<span className={`camera-badge ${fresh||!camera.trackingEnabled?'':'tracking-lost'}`}>{!camera.trackingEnabled?'키보드 조작 중 · 인식 쉬는 중':fresh?(camera.mode==='tetris'?'손·몸 인식 중':camera.mode==='hand'?(frame?.hands.length?'손 인식 중':'손을 찾는 중'):(frame?.pose.length?'몸 인식 중':'몸을 찾는 중')):'인식 중단 · 자세를 확인해주세요'}</span>}
   </div>;
 }
-export function CameraPanel({camera,frame,connect,large=false,compact=false}:{camera:CameraManager;frame:MotionFrame|null;connect:()=>void;large?:boolean;compact?:boolean}) {
-  const [collapsed,setCollapsed]=useState(false),bodyId=useId();
+export function CameraPanel({camera,frame,connect,large=false,compact=false,collapseInPortrait=false}:{camera:CameraManager;frame:MotionFrame|null;connect:()=>void;large?:boolean;compact?:boolean;collapseInPortrait?:boolean}) {
+  const [collapsed,setCollapsed]=useState(()=>compact&&collapseInPortrait&&window.matchMedia('(max-width: 800px) and (orientation: portrait)').matches),bodyId=useId();
   const [tracking,setTracking]=useState(true),[expanded,setExpanded]=useState(false),[now,setNow]=useState(()=>performance.now());
   useEffect(()=>{
     if(!frame||camera.status!=='ready')return;
     const timer=window.setTimeout(()=>setNow(performance.now()),Math.max(0,FRAME_MAX_AGE-(performance.now()-frame.time)));
     return()=>clearTimeout(timer);
   },[frame,camera.status]);
-  const fresh=!!frame&&camera.status==='ready'&&Math.max(now,performance.now())-frame.time<FRAME_MAX_AGE;
+  const fresh=!!frame&&camera.trackingEnabled&&camera.status==='ready'&&Math.max(now,performance.now())-frame.time<FRAME_MAX_AGE;
   const hand=fresh?frame.hands.find(h=>h.side===camera.settings.hand):undefined,shape=inspectHand(hand,frame?frame.width/frame.height:4/3).shape;
   const detectedHands=fresh?[...new Set(frame.hands.map(h=>h.side==='Right'?'오른손':'왼손'))].join('·'):'';
   const poseVisible=fresh&&[11,12,23,24].every(i=>frame.pose[i]&&(frame.pose[i].visibility??1)>=.55&&(frame.pose[i].presence??1)>=.55);
-  const hint=camera.status!=='ready'?'밝은 곳에서 카메라를 연결해주세요.':camera.mode==='tetris'?poseVisible&&frame?.hands.length===2?'양손·몸 인식 중':'양손과 어깨·골반을 보여주세요.':camera.mode==='pose'?poseVisible?'어깨와 골반을 찾았어요. 편하게 움직여보세요.':'몸 전체가 보이게 카메라에서 조금 떨어져주세요.':compact?(fresh&&frame.hands.length===2?'양손 인식 중':'양손 전체를 보여주세요.'):shape==='unknown'?`${camera.settings.hand==='Right'?'오른손':'왼손'} 전체가 보이게 해주세요.`:shape==='open'?'손 인식 중 · 카드를 가리킨 뒤 주먹을 쥐세요.':'손을 펴주세요. 다음 선택을 준비할 수 있어요.';
+  const hint=camera.status!=='ready'?'밝은 곳에서 카메라를 연결해주세요.':!camera.trackingEnabled?'키보드로 조작하는 동안 움직임 인식을 쉬어요.':camera.mode==='tetris'?poseVisible&&frame?.hands.length===2?'양손·몸 인식 중':'양손과 어깨·골반을 보여주세요.':camera.mode==='pose'?poseVisible?'어깨와 골반을 찾았어요. 편하게 움직여보세요.':'몸 전체가 보이게 카메라에서 조금 떨어져주세요.':compact?(fresh&&frame.hands.length===2?'양손 인식 중':'양손 전체를 보여주세요.'):shape==='unknown'?`${camera.settings.hand==='Right'?'오른손':'왼손'} 전체가 보이게 해주세요.`:shape==='open'?'손 인식 중 · 카드를 가리킨 뒤 주먹을 쥐세요.':'손을 펴주세요. 다음 선택을 준비할 수 있어요.';
   const content=<>
     <Preview camera={camera} frame={frame} tracking={tracking} fresh={fresh}/><p className="tracking-hint" role="status">{hint}</p>
-    {camera.status==='ready'&&camera.mode==='hand'&&<p className="privacy-note detected-hands">감지된 손: {detectedHands||'없음'} · 조작 손: {camera.settings.hand==='Right'?'오른손':'왼손'}</p>}
+    {camera.status==='ready'&&camera.trackingEnabled&&camera.mode==='hand'&&<p className="privacy-note detected-hands">감지된 손: {detectedHands||'없음'} · 조작 손: {camera.settings.hand==='Right'?'오른손':'왼손'}</p>}
     <div className="camera-tools">{(!compact||camera.status==='ready')&&<><label className="inline-check"><input type="checkbox" checked={tracking} onChange={e=>setTracking(e.target.checked)}/>관절 표시</label><button data-hand className="small-button" onClick={()=>setExpanded(true)}><Maximize2 size={20}/>확대</button></>}{!['ready','requesting','loading'].includes(camera.status)&&<button data-hand className="small-button" onClick={connect}><RefreshCw size={20}/>연결</button>}</div>
     {!compact&&<p className="privacy-note">영상은 이 기기에서만 처리해요. 녹화·업로드하지 않아요.</p>}
   </>;

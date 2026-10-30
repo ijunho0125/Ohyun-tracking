@@ -15,6 +15,8 @@
     "test:character-sync": "node tests/character-sync-browser-check.mjs",
     "test:motion": "node tests/motion-browser-check.mjs",
     "test:dino-motion": "node tests/dino-motion-browser-check.mjs",
+    "test:cat": "node tests/cat-browser-check.mjs",
+    "test:tetris-bag": "node tests/tetris-bag-browser-check.mjs",
     "test:restart": "node tests/restart-browser-check.mjs",
     "test:tracking-speed": "node tests/tracking-speed-browser-check.mjs",
     "test:vision": "node tests/vision-browser-check.mjs",

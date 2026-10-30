@@ -1,4 +1,4 @@
-export type GameId = 'dino' | 'tetris' | 'balance';
+export type GameId = 'dino' | 'tetris' | 'balance' | 'cat';
 export type Page = 'lobby' | 'game' | 'character' | 'tutorial' | 'lab';
 export type GameState = 'ready' | 'running' | 'paused' | 'over' | 'disposed';
 export type MotionMode = 'hand' | 'pose' | 'tetris';

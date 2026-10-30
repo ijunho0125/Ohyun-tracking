@@ -7,6 +7,9 @@ export class CameraManager {
   settings: Settings; onStatus = () => {}; onFrame = (_f: MotionFrame) => {};
   private frameListeners = new Set<(frame: MotionFrame) => void>();
   hasResult = false;
+  trackingEnabled = true;
+  private trackingGeneration = 0;
+  private discardResult = false;
   constructor(settings: Settings) { this.settings = settings; this.video.muted = true; this.video.playsInline = true; }
   subscribeFrame(listener: (frame: MotionFrame) => void) {
     this.frameListeners.add(listener);
@@ -32,23 +35,36 @@ export class CameraManager {
     }
   }
   loadWorker() {
-    this.cancelLoop(); clearTimeout(this.watchdog); this.worker?.terminate(); this.busy = false; this.hasResult = false; this.lastVideoTime = -1; this.nextFrameTime = 0;
+    this.cancelLoop(); clearTimeout(this.watchdog); this.worker?.terminate(); this.busy = false; this.discardResult = false; this.hasResult = false; this.lastVideoTime = -1; this.nextFrameTime = 0;
     this.setStatus('loading', `${this.mode === 'tetris' ? '손과 몸' : this.mode === 'hand' ? '손' : '몸'} 인식 모델을 준비하고 있어요.`);
     const worker = new Worker(`${import.meta.env.BASE_URL}vision.worker.js`); this.worker = worker;
     this.watchdog = window.setTimeout(() => this.fail('인식 모델을 불러오지 못했어요. npm run setup:models 실행 후 다시 시도해주세요.'), 45000);
     worker.onmessage = ({ data }) => {
       if (worker !== this.worker) return;
       if (data.type === 'ready') { clearTimeout(this.watchdog); this.setStatus('ready'); this.loop(); }
-      if (data.type === 'error') this.fail('인식 모델을 실행하지 못했어요. 모델 파일과 브라우저를 확인하고 다시 시도해주세요.');
+      if (data.type === 'error') {
+        if (this.busy && this.discardResult) {
+          this.busy = false; this.discardResult = false; clearTimeout(this.watchdog);
+          if (this.trackingEnabled) this.captureFrame();
+          return;
+        }
+        this.fail('인식 모델을 실행하지 못했어요. 모델 파일과 브라우저를 확인하고 다시 시도해주세요.');
+      }
       if (data.type === 'result') {
-        this.busy = false; this.hasResult = true; clearTimeout(this.watchdog);
+        this.busy = false; clearTimeout(this.watchdog);
+        if (!this.trackingEnabled || this.discardResult) {
+          this.discardResult = false;
+          if (this.trackingEnabled) this.captureFrame();
+          return;
+        }
+        this.hasResult = true;
         // Gameplay consumes the result synchronously; React preview rendering
         // must not add another render/effect cycle to a jump command.
         for (const listener of this.frameListeners) {
-          if (worker !== this.worker || this.status !== 'ready') return;
+          if (worker !== this.worker || this.status !== 'ready' || !this.trackingEnabled) return;
           listener(data);
         }
-        if (worker !== this.worker || this.status !== 'ready') return;
+        if (worker !== this.worker || this.status !== 'ready' || !this.trackingEnabled) return;
         this.onFrame(data);
         // Inference can finish just after a video/RAF callback. Reuse the
         // newly available slot immediately instead of waiting another tick.
@@ -59,13 +75,29 @@ export class CameraManager {
     worker.postMessage({ type: 'init', mode: this.mode, base: new URL(import.meta.env.BASE_URL, location.origin).href });
   }
   setMode(mode: MotionMode) { if (mode === this.mode) return; this.mode = mode; if (this.stream && this.status !== 'requesting') this.loadWorker(); }
+  setTrackingEnabled(enabled: boolean) {
+    if (enabled === this.trackingEnabled) return;
+    this.trackingEnabled = enabled;
+    this.trackingGeneration++;
+    this.hasResult = false;
+    if (!enabled) {
+      this.cancelLoop();
+      if (this.status === 'ready') clearTimeout(this.watchdog);
+      if (this.busy) this.discardResult = true;
+    } else if (this.status === 'ready') {
+      this.lastVideoTime = -1; this.nextFrameTime = 0;
+      if (this.busy) this.watchdog = window.setTimeout(() => this.fail('인식 응답이 멈췄어요. 카메라를 다시 연결해주세요.'), 6000);
+      this.loop();
+    }
+    this.onStatus();
+  }
   cancelLoop() {
     cancelAnimationFrame(this.raf);this.raf = 0;
     if(this.videoCallback)this.video.cancelVideoFrameCallback?.(this.videoCallback);
     this.videoCallback = 0;
   }
   loop = () => {
-    if (this.status !== 'ready') return;
+    if (this.status !== 'ready' || !this.trackingEnabled) return;
     // A detached video may stop issuing presentation callbacks (even while
     // currentTime advances). Retain one RAF fallback so tracking cannot stall.
     this.raf = requestAnimationFrame(this.loop);
@@ -74,7 +106,7 @@ export class CameraManager {
   };
   cameraFrame = () => {
     this.videoCallback=0;
-    if(this.status!=='ready')return;
+    if(this.status!=='ready'||!this.trackingEnabled)return;
     this.videoCallback=this.video.requestVideoFrameCallback(this.cameraFrame);
     this.captureFrame();
   };
@@ -82,22 +114,31 @@ export class CameraManager {
     // Both clocks sample the newest decoded frame. Busy frames are skipped,
     // never queued behind an older inference.
     const time = performance.now();
-    if (this.status !== 'ready' || !this.worker || document.hidden || this.busy || this.video.readyState < 2 || this.video.currentTime === this.lastVideoTime || time + 2 < this.nextFrameTime) return;
+    if (this.status !== 'ready' || !this.trackingEnabled || !this.worker || document.hidden || this.busy || this.video.readyState < 2 || this.video.currentTime === this.lastVideoTime || time + 2 < this.nextFrameTime) return;
     this.busy = true; this.frameTime = time; this.lastVideoTime = this.video.currentTime;
     const interval = 1000 / this.settings.frequency;
     // Keep the deadline anchored so 30 Hz video does not turn a 20 Hz request
     // into 15 Hz by rounding every interval to two camera frames.
     this.nextFrameTime = Math.max(this.nextFrameTime + interval, time + interval / 4);
-    const worker = this.worker;
+    const worker = this.worker, trackingGeneration = this.trackingGeneration;
     this.watchdog = window.setTimeout(() => this.fail('인식 응답이 멈췄어요. 카메라를 다시 연결해주세요.'), 6000);
     const width = this.video.videoWidth, height = this.video.videoHeight;
     const resize = width > 640 ? { resizeWidth: 640, resizeHeight: Math.max(1,Math.round(height * 640 / width)), resizeQuality: 'low' as const } : undefined;
     createImageBitmap(this.video, resize).then(bitmap => {
       if (worker !== this.worker || this.status !== 'ready') { bitmap.close(); return; }
+      if (trackingGeneration !== this.trackingGeneration || !this.trackingEnabled) {
+        bitmap.close(); this.busy = false; this.discardResult = false; clearTimeout(this.watchdog);
+        if (this.trackingEnabled) this.captureFrame();
+        return;
+      }
       try { worker!.postMessage({ type: 'frame', bitmap, time, width, height }, [bitmap]); }
       catch (error) { bitmap.close(); throw error; }
     }).catch(() => {
-      if (worker === this.worker && this.status === 'ready') this.fail('카메라 영상을 읽지 못했어요. 다시 연결해주세요.');
+      if (worker !== this.worker || this.status !== 'ready') return;
+      if (trackingGeneration !== this.trackingGeneration || !this.trackingEnabled) {
+        this.busy = false; this.discardResult = false; clearTimeout(this.watchdog);
+        if (this.trackingEnabled) this.captureFrame();
+      } else this.fail('카메라 영상을 읽지 못했어요. 다시 연결해주세요.');
     });
   }
   fail(message: string) { this.stop(); this.setStatus('error', message); }

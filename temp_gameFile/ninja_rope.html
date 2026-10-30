@@ -1,0 +1,1527 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>고군분투 (Gogunbuntu Ninja Cat) - 모션 인식 버전</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <!-- MediaPipe Pose & Camera Utilities -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            font-family: 'Jua', 'Noto Sans KR', sans-serif;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            background-color: #0d0f18;
+        }
+        .mirror-view {
+            transform: scaleX(-1);
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-white min-h-screen flex flex-col items-center justify-center p-2 sm:p-4 overflow-x-hidden">
+
+    <div class="relative w-full max-w-5xl bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border-4 border-amber-600/60 flex flex-col items-center">
+        
+        <!-- Top HUD Header -->
+        <div class="w-full bg-slate-950/90 backdrop-blur-md px-4 py-2.5 border-b border-amber-600/40 flex justify-between items-center z-10">
+            <div class="flex items-center gap-3">
+                <div class="bg-amber-900/40 border border-amber-500/50 px-3 py-1 rounded-xl flex items-center gap-2">
+                    <span class="text-xs text-amber-300 font-bold">점수</span>
+                    <span id="scoreText" class="text-xl font-black text-amber-400 tracking-wider">0</span>
+                </div>
+                <!-- 콤보 시스템 UI 추가 -->
+                <div id="comboContainer" class="bg-rose-900/40 border border-rose-500/50 px-3 py-1 rounded-xl flex items-center gap-2 hidden transition-all transform duration-150">
+                    <span class="text-xs text-rose-300 font-bold">콤보</span>
+                    <span id="comboText" class="text-xl font-black text-rose-400 tracking-wider">0</span>
+                </div>
+                <div class="bg-slate-800/60 border border-slate-700 px-3 py-1 rounded-xl flex items-center gap-2">
+                    <span class="text-xs text-slate-300 font-bold">거리</span>
+                    <span id="distanceText" class="text-lg font-bold text-cyan-300">0m</span>
+                </div>
+            </div>
+
+            <!-- Camera & Motion Control Status Center Indicator -->
+            <div class="hidden sm:flex items-center gap-2 bg-slate-900/80 px-3 py-1 rounded-xl border border-slate-700">
+                <span id="motionStatusBadge" class="w-3 h-3 rounded-full bg-slate-500"></span>
+                <span id="motionStatusText" class="text-xs text-slate-300 font-bold">웹캠 꺼짐</span>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button id="toggleCameraBtn" class="bg-emerald-700 hover:bg-emerald-600 px-3 py-1.5 rounded-xl text-xs font-bold text-white border border-emerald-400/50 transition active:scale-95 flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                    <span id="camBtnText">웹캠 켜기</span>
+                </button>
+                <button id="soundBtn" class="bg-slate-800 hover:bg-slate-700 p-2 rounded-xl text-amber-400 border border-amber-500/30 transition transform active:scale-95">
+                    <svg id="soundIconOn" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.414 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.414-1.414A3.985 3.985 0 0013 10a3.985 3.985 0 00-1.172-2.828 1 1 0 010-1.414z"/></svg>
+                    <svg id="soundIconOff" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+                </button>
+                <div class="bg-amber-950/60 border border-amber-600/50 px-3 py-1 rounded-xl flex items-center gap-2">
+                    <span class="text-xs text-amber-300 font-bold">최고</span>
+                    <span id="highScoreText" class="text-lg font-black text-amber-300">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Workspace (Game Canvas + Motion Tracking Side/Overlay View) -->
+        <div class="relative w-full aspect-[16/9] bg-slate-950 overflow-hidden cursor-pointer flex" id="gameArea">
+            
+            <!-- Game Canvas -->
+            <canvas id="gameCanvas" class="w-full h-full block"></canvas>
+
+            <!-- Live Camera Pose Feed PiP Window (Top-Right Overlay) -->
+            <div id="cameraPreviewContainer" class="absolute top-4 right-4 w-48 h-36 bg-slate-950/80 border-2 border-amber-500/70 rounded-xl overflow-hidden shadow-xl flex flex-col hidden z-10 transition-all duration-300">
+                <div class="relative w-full h-full">
+                    <!-- 네이티브 비디오 요소 활용 (캔버스 복사 대체로 그래픽 연산 대폭 감소) -->
+                    <video id="webcamVideo" class="absolute inset-0 w-full h-full object-cover mirror-view" playsinline autoplay muted></video>
+                    <!-- 포즈 뼈대만 그리는 투명 캔버스 -->
+                    <canvas id="poseCanvas" class="absolute inset-0 w-full h-full mirror-view block bg-transparent"></canvas>
+
+                    <!-- Real-time Motion Indicators -->
+                    <div class="absolute bottom-1 left-1 right-1 flex justify-between gap-1 text-[10px] z-20">
+                        <span id="jumpIndicator" class="bg-slate-800/90 text-slate-400 px-1.5 py-0.5 rounded font-bold transition">JUMP</span>
+                        <span id="armIndicator" class="bg-slate-800/90 text-slate-400 px-1.5 py-0.5 rounded font-bold transition">ARM</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Start / Start Menu Overlay -->
+            <div id="startOverlay" class="absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-20 transition-opacity duration-300">
+                <div class="relative mb-2">
+                    <h1 class="text-4xl sm:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-orange-400 to-amber-500 drop-shadow-lg tracking-wider">
+                        고군분투
+                    </h1>
+                    <span class="block text-amber-200 text-sm sm:text-base font-bold mt-1 tracking-widest">
+                        ~ 닌자 고양이 모션 트래킹 와이어 액션 ~
+                    </span>
+                </div>
+
+                <div class="my-4 max-w-lg bg-slate-900/90 border border-amber-500/40 rounded-2xl p-4 text-left text-xs sm:text-sm text-amber-100 space-y-2.5 shadow-inner">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-1">
+                        <span class="font-bold text-amber-300 flex items-center gap-1">
+                            📷 카메라인식 조작법 (hop-hop-jump 연동)
+                        </span>
+                        <span class="text-xs text-emerald-400">웹캠 상시 지원</span>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <span class="bg-amber-500 text-slate-950 px-2 py-0.5 rounded font-black text-xs shrink-0">1차 점프</span>
+                        <p>웹캠 앞에서 <b class="text-amber-300">실제로 제자리 점프</b>를 하면 캐릭터가 지붕을 뛰어넘습니다! (스페이스바 가능)</p>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <span class="bg-orange-500 text-slate-950 px-2 py-0.5 rounded font-black text-xs shrink-0">와이어 액션</span>
+                        <p>공중에 떠있을 때 <b class="text-orange-300">오른팔을 위로 높이 뻗으며 점프</b>하면 뚫어뻥 와이어를 발사합니다!</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-3">
+                    <button id="startBtn" class="px-8 py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black text-xl rounded-2xl shadow-lg hover:shadow-amber-500/30 transform hover:-translate-y-1 transition duration-200 border-2 border-amber-200">
+                        게임 시작 (Space / Tap)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Game Over / Clear Overlay -->
+            <div id="gameOverOverlay" class="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-20 hidden">
+                <div class="bg-slate-900 border-2 border-amber-500/50 rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl flex flex-col items-center relative overflow-hidden">
+                    <div class="absolute -right-8 -top-8 w-24 h-24 bg-amber-500/10 rounded-full blur-xl"></div>
+                    
+                    <h2 id="resultTitle" class="text-3xl sm:text-4xl font-black text-rose-500 mb-2 tracking-wider">아쉽군요!</h2>
+                    <p id="resultSub" class="text-slate-400 text-xs sm:text-sm mb-6">고군이가 지붕 아래로 떨어졌습니다.</p>
+
+                    <div class="w-full bg-slate-950/70 rounded-2xl p-4 border border-slate-800 space-y-3 mb-6">
+                        <div class="flex justify-between items-center text-sm">
+                            <span class="text-slate-400">최종 점수</span>
+                            <span id="finalScore" class="text-2xl font-black text-amber-400">0</span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm border-t border-slate-800 pt-2">
+                            <span class="text-slate-400">달린 거리</span>
+                            <span id="finalDistance" class="text-lg font-bold text-cyan-300">0m</span>
+                        </div>
+                        <div id="newHighContainer" class="hidden bg-amber-500/20 border border-amber-400/50 rounded-xl py-1 text-amber-300 text-xs font-bold animate-pulse text-center">
+                            🎉 최고 기록 경신! 🎉
+                        </div>
+                    </div>
+
+                    <button id="restartBtn" class="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black text-lg rounded-xl shadow-lg transition transform hover:-translate-y-0.5 active:translate-y-0">
+                        다시 도전하기
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Touch / Motion Control Footer -->
+        <div class="w-full bg-slate-950 p-3 border-t border-slate-800 flex justify-between items-center px-6">
+            <div class="text-xs text-slate-400 flex items-center gap-2">
+                <span id="statusDot" class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                <span id="controlStatus">준비됨 (웹캠 미연결)</span>
+            </div>
+            <div class="flex gap-2">
+                <button id="mobileJumpBtn" class="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 active:scale-95 text-slate-950 font-black rounded-xl shadow-md border border-amber-300 text-sm select-none">
+                    점프 / 와이어 🪠
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Web Audio API Sound Synthesizer
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+                this.bgmInterval = null;
+                this.bgmStep = 0;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioCtx();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playJump() {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(180, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(520, this.ctx.currentTime + 0.15);
+
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            }
+
+            playWireShoot() {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(250, this.ctx.currentTime + 0.12);
+
+                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.12);
+            }
+
+            playWireAttach() {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                osc.frequency.setValueAtTime(600, this.ctx.currentTime + 0.04);
+
+                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            }
+
+            playCoin(isGold = false) {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                
+                const freq1 = isGold ? 987.77 : 659.25;
+                const freq2 = isGold ? 1318.51 : 880;
+
+                osc.frequency.setValueAtTime(freq1, this.ctx.currentTime);
+                osc.frequency.setValueAtTime(freq2, this.ctx.currentTime + 0.08);
+
+                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.25);
+            }
+
+            playFall() {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(350, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(60, this.ctx.currentTime + 0.6);
+
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.6);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.6);
+            }
+
+            playWin() {
+                if (this.muted || !this.ctx) return;
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.12);
+
+                    gain.gain.setValueAtTime(0.3, this.ctx.currentTime + idx * 0.12);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + idx * 0.12 + 0.3);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + idx * 0.12);
+                    osc.stop(this.ctx.currentTime + idx * 0.12 + 0.3);
+                });
+            }
+
+            // 신나는 레트로 닌자 BGM 생성 및 재생 (비트 추가 & 템포 업)
+            startBGM() {
+                this.stopBGM();
+                this.bgmStep = 0;
+                
+                // 동양적인 닌자풍 비트 (A minor pentatonic 중심)
+                const bassNotes = [110, 110, 130.81, 110, 146.83, 110, 164.81, 196.00]; 
+                const melodyNotes = [
+                    440, 523.25, 659.25, 587.33,
+                    440, 523.25, 783.99, 659.25,
+                    880, 783.99, 659.25, 523.25,
+                    587.33, 659.25, 523.25, 440
+                ];
+
+                this.bgmInterval = setInterval(() => {
+                    if (this.muted || !this.ctx || this.ctx.state !== 'running') return;
+                    
+                    const time = this.ctx.currentTime;
+                    
+                    // [BGM 강화 1] 킥 드럼 (Kick Drum) 합성 - 심장을 울리는 비트 추가
+                    if (this.bgmStep % 4 === 0 || this.bgmStep % 8 === 7) {
+                        const kickOsc = this.ctx.createOscillator();
+                        const kickGain = this.ctx.createGain();
+                        kickOsc.frequency.setValueAtTime(150, time);
+                        kickOsc.frequency.exponentialRampToValueAtTime(0.01, time + 0.1);
+                        kickGain.gain.setValueAtTime(0.4, time); // 묵직한 볼륨
+                        kickGain.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
+                        kickOsc.connect(kickGain);
+                        kickGain.connect(this.ctx.destination);
+                        kickOsc.start(time);
+                        kickOsc.stop(time + 0.1);
+                    }
+
+                    // 1. 베이스 라인 (묵직한 쏘우투스 + 로우패스 필터)
+                    const bassFreq = bassNotes[this.bgmStep % bassNotes.length];
+                    const bassOsc = this.ctx.createOscillator();
+                    const bassGain = this.ctx.createGain();
+                    bassOsc.type = 'sawtooth';
+                    bassOsc.frequency.setValueAtTime(bassFreq, time);
+                    bassGain.gain.setValueAtTime(0.05, time); // 베이스 볼륨 약간 업
+                    bassGain.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
+                    
+                    const filter = this.ctx.createBiquadFilter();
+                    filter.type = 'lowpass';
+                    filter.frequency.value = 600;
+                    
+                    bassOsc.connect(filter);
+                    filter.connect(bassGain);
+                    bassGain.connect(this.ctx.destination);
+                    bassOsc.start(time);
+                    bassOsc.stop(time + 0.11);
+
+                    // 2. 멜로디 (통통 튀는 스퀘어파)
+                    if (this.bgmStep % 2 === 0) {
+                        const melIdx = Math.floor(this.bgmStep / 2) % melodyNotes.length;
+                        const melodyFreq = melodyNotes[melIdx];
+                        const melOsc = this.ctx.createOscillator();
+                        const melGain = this.ctx.createGain();
+                        melOsc.type = 'square';
+                        melOsc.frequency.setValueAtTime(melodyFreq, time);
+                        melGain.gain.setValueAtTime(0.03, time);
+                        melGain.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
+                        
+                        melOsc.connect(melGain);
+                        melGain.connect(this.ctx.destination);
+                        melOsc.start(time);
+                        melOsc.stop(time + 0.1);
+                    }
+                    
+                    this.bgmStep++;
+                }, 100); // [BGM 강화 2] 템포 업 (130ms ➔ 100ms) 훨씬 빠르고 긴장감 있게 변경
+            }
+
+            stopBGM() {
+                if (this.bgmInterval) {
+                    clearInterval(this.bgmInterval);
+                    this.bgmInterval = null;
+                }
+            }
+        }
+
+        const sound = new SoundEngine();
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const GAME_WIDTH = 800;
+        const GAME_HEIGHT = 450;
+        const MAX_WIRE_LENGTH = 300;
+        const MIN_WIRE_LENGTH = 130;
+        // The pole glow extends 16 pixels to either side of its center.
+        const MIN_POLE_SPACING = GAME_WIDTH + 40;
+        canvas.width = GAME_WIDTH;
+        canvas.height = GAME_HEIGHT;
+
+        // UI References
+        const scoreText = document.getElementById('scoreText');
+        const distanceText = document.getElementById('distanceText');
+        const highScoreText = document.getElementById('highScoreText');
+        const comboContainer = document.getElementById('comboContainer'); // 콤보 UI
+        const comboText = document.getElementById('comboText'); // 콤보 수치 UI
+        const startOverlay = document.getElementById('startOverlay');
+        const gameOverOverlay = document.getElementById('gameOverOverlay');
+        const startBtn = document.getElementById('startBtn');
+        const restartBtn = document.getElementById('restartBtn');
+        const soundBtn = document.getElementById('soundBtn');
+        const soundIconOn = document.getElementById('soundIconOn');
+        const soundIconOff = document.getElementById('soundIconOff');
+        const controlStatus = document.getElementById('controlStatus');
+        const mobileJumpBtn = document.getElementById('mobileJumpBtn');
+        
+        // Motion Control UI References
+        const toggleCameraBtn = document.getElementById('toggleCameraBtn');
+        const camBtnText = document.getElementById('camBtnText');
+        const cameraPreviewContainer = document.getElementById('cameraPreviewContainer');
+        const webcamVideo = document.getElementById('webcamVideo');
+        const jumpIndicator = document.getElementById('jumpIndicator');
+        const armIndicator = document.getElementById('armIndicator');
+        const motionStatusBadge = document.getElementById('motionStatusBadge');
+        const motionStatusText = document.getElementById('motionStatusText');
+
+        let poseCanvas = null;
+        let poseCtx = null;
+
+        function getPoseContext() {
+            if (!poseCtx) {
+                poseCanvas = document.getElementById('poseCanvas');
+                if (poseCanvas) {
+                    poseCtx = poseCanvas.getContext('2d');
+                }
+            }
+            return poseCtx;
+        }
+
+        // High Score with Try-Catch (Prevent Sandbox Block Errors)
+        let highScore = 0;
+        try {
+            highScore = parseInt(localStorage.getItem('gogun_highscore') || '0');
+        } catch (e) {
+            console.warn("미리보기 환경이라 최고 점수 저장이 비활성화되었습니다.");
+        }
+        highScoreText.textContent = highScore.toLocaleString();
+
+        // Game Variables
+        let gameState = 'START'; // START, PLAYING, GAMEOVER
+        let cameraX = 0;
+        let score = 0;
+        let distance = 0;
+        let gameSpeed = 4.3;
+        let frameCount = 0;
+        
+        // 콤보 시스템 변수
+        let combo = 0;
+        let comboTimer = 0;
+
+        window.isRightArmExtended = false; // 전역 팔 상태
+
+        class CatNinja {
+            constructor() {
+                this.x = 150;
+                this.y = 200;
+                this.width = 42;
+                this.height = 42;
+                this.vy = 0;
+                this.vx = 0;
+                this.gravity = 0.55;
+                this.jumpForce = -13;
+                this.isGrounded = false;
+                this.jumpCount = 0;
+
+                // Wire Hook mechanics
+                this.isWireAttached = false;
+                this.wireTarget = null;
+                this.lastWireTarget = null;
+                this.wireLength = 0;
+                this.wireAngle = 0;
+                this.wireAngularVel = 0;
+
+                // Animation
+                this.scarfAnim = 0;
+                this.rotation = 0;
+            }
+
+            reset() {
+                this.x = 150;
+                this.y = 200;
+                this.vy = 0;
+                this.vx = 0;
+                this.isGrounded = false;
+                this.jumpCount = 0;
+                this.isWireAttached = false;
+                this.wireTarget = null;
+                this.lastWireTarget = null;
+                this.rotation = 0;
+            }
+
+            // Enhanced Jump
+            jump() {
+                if (this.isGrounded) {
+                    this.vy = this.jumpForce;
+                    this.isGrounded = false;
+                    this.jumpCount = 1;
+                    this.lastWireTarget = null; // 점프 시 이전 와이어 타겟 초기화
+                    sound.playJump();
+                    createParticles(this.x + cameraX, this.y + this.height, '#e2e8f0', 6);
+                }
+            }
+
+            tryAttachWire() {
+                const catWorldX = this.x + cameraX + this.width / 2;
+                const wireAnchorY = this.y + 10;
+                let closestPole = null;
+                let minDist = MAX_WIRE_LENGTH; // 와이어가 반응하는 최대 거리
+
+                for (let pole of wirePoles) {
+                    if (pole === this.lastWireTarget) continue; // 방금 놓은 와이어는 다시 안 잡음
+
+                    let dx = pole.x - catWorldX;
+                    let dy = pole.y - wireAnchorY;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < minDist && pole.x > catWorldX + 10) {
+                        minDist = dist;
+                        closestPole = pole;
+                    }
+                }
+
+                if (closestPole) {
+                    this.wireTarget = closestPole;
+                    this.isWireAttached = true;
+                    this.wireLength = minDist;
+                    this.wireAngle = Math.atan2(wireAnchorY - closestPole.y, catWorldX - closestPole.x);
+                    this.wireAngularVel = -0.048;
+                    
+                    sound.playWireAttach();
+                    sound.playWireShoot();
+
+                    createParticles(closestPole.x, closestPole.y, '#f59e0b', 10);
+                }
+            }
+
+            detachWire() {
+                if (this.isWireAttached) {
+                    this.isWireAttached = false;
+                    // [수정] 와이어에서 떨어질 때 다음 발판에 무조건 닿을 수 있도록 전진 관성과 띄우는 힘 대폭 증가
+                    this.vy = -14.5;
+                    this.vx = 14.5;
+                    this.lastWireTarget = this.wireTarget; // 연속 재장착 방지용 저장
+                    this.wireTarget = null;
+                    this.jumpCount = 2;
+                    createParticles(this.x + cameraX, this.y, '#fbbf24', 8);
+                }
+            }
+
+            update() {
+                this.scarfAnim += 0.2;
+
+                // [핵심] 공중에 떠 있고, 와이어가 안 걸려있고, 오른팔을 뻗고 있으면 지속적으로 와이어 캐치 시도
+                if (!this.isGrounded && !this.isWireAttached && window.isRightArmExtended) {
+                    this.tryAttachWire();
+                }
+
+                if (this.isWireAttached && this.wireTarget) {
+                    this.wireAngularVel -= 0.0015; 
+                    if (this.wireAngularVel < -0.075) {
+                        this.wireAngularVel = -0.075;
+                    }
+
+                    this.wireAngle += this.wireAngularVel;
+
+                    if (this.wireLength > MIN_WIRE_LENGTH) {
+                        this.wireLength = Math.max(MIN_WIRE_LENGTH, this.wireLength - 2.5);
+                    }
+
+                    let catWorldX = this.wireTarget.x + Math.cos(this.wireAngle) * this.wireLength;
+                    this.x = catWorldX - cameraX - this.width / 2;
+                    this.y = this.wireTarget.y + Math.sin(this.wireAngle) * this.wireLength - 10;
+
+                    if (this.wireAngle < 0.65 || catWorldX > this.wireTarget.x + 40) {
+                        this.detachWire();
+                    }
+                } else {
+                    this.vy += this.gravity;
+                    this.y += this.vy;
+
+                    this.x += this.vx;
+                    this.vx *= 0.95; 
+
+                    if (this.x < 150) {
+                        this.x += (150 - this.x) * 0.06;
+                    } else if (this.x > 150) {
+                        this.x -= (this.x - 150) * 0.04;
+                    }
+
+                    if (!this.isGrounded) {
+                        this.rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, this.vy * 0.05));
+                    } else {
+                        this.rotation = 0;
+                    }
+                }
+
+                if (!this.isWireAttached) {
+                    this.checkRoofCollisions();
+                }
+            }
+
+            checkRoofCollisions() {
+                let catWorldX = this.x + cameraX;
+                this.isGrounded = false;
+
+                for (let roof of rooftops) {
+                    if (catWorldX + this.width * 0.3 >= roof.x && catWorldX - this.width * 0.3 <= roof.x + roof.width) {
+                        let roofY = roof.y;
+                        // [수정] 낙하 속도가 빠를 때 지붕을 그대로 관통하는 버그를 막기 위해 충돌 두께를 24에서 40으로 확장
+                        if (this.y + this.height >= roofY && this.y + this.height <= roofY + 40 && this.vy >= 0) {
+                            this.y = roofY - this.height;
+                            this.vy = 0;
+                            this.isGrounded = true;
+                            this.jumpCount = 0;
+
+                            if (this.isWireAttached) {
+                                this.detachWire();
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+
+            draw() {
+                ctx.save();
+
+                if (this.isWireAttached && this.wireTarget) {
+                    let targetScreenX = this.wireTarget.x - cameraX;
+                    let targetScreenY = this.wireTarget.y;
+
+                    ctx.beginPath();
+                    ctx.moveTo(this.x + this.width / 2, this.y + 10);
+                    ctx.lineTo(targetScreenX, targetScreenY);
+                    ctx.strokeStyle = '#f59e0b';
+                    ctx.lineWidth = 3;
+                    ctx.setLineDash([4, 2]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+
+                    ctx.fillStyle = '#ef4444';
+                    ctx.beginPath();
+                    ctx.arc(targetScreenX, targetScreenY, 7, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+                ctx.rotate(this.rotation);
+
+                // Scarf
+                let scarfWave = Math.sin(this.scarfAnim) * 6;
+                ctx.fillStyle = '#dc2626';
+                ctx.beginPath();
+                ctx.moveTo(-10, -5);
+                ctx.quadraticCurveTo(-22, -10 + scarfWave, -32, -4 + scarfWave * 1.5);
+                ctx.quadraticCurveTo(-22, 2 + scarfWave, -10, 0);
+                ctx.fill();
+
+                // Ninja Legs
+                ctx.fillStyle = '#1e293b';
+                if (this.isGrounded) {
+                    let legCycle = Math.sin(frameCount * 0.3) * 10;
+                    ctx.fillRect(-12 + legCycle, 10, 8, 12);
+                    ctx.fillRect(4 - legCycle, 10, 8, 12);
+                } else {
+                    ctx.fillRect(-10, 8, 8, 8);
+                    ctx.fillRect(2, 6, 8, 8);
+                }
+
+                // Body
+                ctx.fillStyle = '#d97706';
+                ctx.beginPath();
+                ctx.roundRect(-16, -14, 32, 28, 8);
+                ctx.fill();
+
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(-12, -8, 24, 20);
+
+                // Cat Head
+                ctx.fillStyle = '#f59e0b';
+                ctx.beginPath();
+                ctx.arc(4, -14, 15, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Ears
+                ctx.fillStyle = '#b45309';
+                ctx.beginPath();
+                ctx.moveTo(-6, -24); ctx.lineTo(-1, -33); ctx.lineTo(4, -26);
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.moveTo(6, -26); ctx.lineTo(12, -33); ctx.lineTo(16, -22);
+                ctx.fill();
+
+                // Headband
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(-8, -22, 24, 7);
+
+                // Eyes
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(6, -18, 4, 0, Math.PI * 2);
+                ctx.arc(14, -18, 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#020617';
+                ctx.beginPath();
+                ctx.arc(7, -18, 2, 0, Math.PI * 2);
+                ctx.arc(15, -18, 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Whiskers
+                ctx.strokeStyle = '#78350f';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(16, -14); ctx.lineTo(24, -16);
+                ctx.moveTo(16, -12); ctx.lineTo(24, -11);
+                ctx.stroke();
+
+                if (this.isWireAttached) {
+                    ctx.fillStyle = '#ef4444';
+                    ctx.beginPath();
+                    ctx.arc(10, -2, 6, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                ctx.restore();
+            }
+        }
+
+        const cat = new CatNinja();
+
+        let rooftops = [];
+        let wirePoles = [];
+        let coins = [];
+        let particles = [];
+        let floatingTexts = [];
+
+        function generateInitialWorld() {
+            rooftops = [];
+            wirePoles = [];
+            coins = [];
+            particles = [];
+            floatingTexts = [];
+
+            let currentX = 0;
+
+            rooftops.push({
+                x: 0,
+                y: 300,
+                width: 700,
+                height: 200,
+                type: 'standard'
+            });
+
+            currentX = 700;
+
+            for (let i = 0; i < 25; i++) {
+                currentX = generateNextRooftop(currentX);
+            }
+        }
+
+        function generateNextRooftop(startX) {
+            let isWideGap = Math.random() < 0.45;
+            // 감속 후에도 점프와 와이어로 건널 수 있는 거리로 유지한다.
+            let gap = isWideGap ? Math.floor(240 + Math.random() * 61) : Math.floor(95 + Math.random() * 16);
+            const previousPole = wirePoles[wirePoles.length - 1];
+            if (isWideGap && previousPole && startX + gap * 0.45 - previousPole.x < MIN_POLE_SPACING) {
+                // A wide gap always needs a pole, so use a jumpable gap here instead.
+                isWideGap = false;
+                gap = Math.floor(95 + Math.random() * 16);
+            }
+            let roofWidth = Math.floor(350 + Math.random() * 400);
+            let roofY = Math.floor(250 + Math.random() * 90);
+
+            let roofX = startX + gap;
+
+            rooftops.push({
+                x: roofX,
+                y: roofY,
+                width: roofWidth,
+                height: 250,
+                type: 'hanok'
+            });
+
+            let currentPoleY = 50; // 동전 생성 위치 계산에 맞추기 위해 선언
+
+            if (isWideGap) {
+                let poleX = startX + gap * 0.45;
+                // [수정] 와이어 고리(Pole)의 위치가 낮게 생성되지 않게 화면 최상단(40~70)으로 안전하게 고정
+                currentPoleY = 40 + Math.floor(Math.random() * 30); 
+                wirePoles.push({
+                    x: poleX,
+                    y: currentPoleY,
+                    active: true
+                });
+            }
+
+            let coinCount = isWideGap ? 7 : Math.floor(3 + Math.random() * 4);
+
+            for (let c = 0; c < coinCount; c++) {
+                let coinX = roofX + 50 + c * 45;
+                let coinY = roofY - 35;
+
+                if (isWideGap) {
+                    let progress = c / (coinCount - 1);
+                    coinX = startX + gap * (0.15 + progress * 0.70);
+                    // 와이어 고리 Y축 수정값을 동전 배치 곡선에도 동일하게 반영
+                    let wireLen = 160;
+                    let lowestPointY = currentPoleY + wireLen + 15;
+                    let curve = Math.sin(progress * Math.PI);
+                    coinY = (roofY - 110) + curve * (lowestPointY - (roofY - 110));
+                }
+
+                let type = 'bronze';
+                let value = 10;
+                let rand = Math.random();
+                if (rand > 0.88) {
+                    type = 'goldbar';
+                    value = 200;
+                } else if (rand > 0.6) {
+                    type = 'gold';
+                    value = 50;
+                } else if (rand > 0.3) {
+                    type = 'silver';
+                    value = 20;
+                }
+
+                coins.push({
+                    x: coinX,
+                    y: coinY,
+                    type: type,
+                    value: value,
+                    collected: false,
+                    animOffset: Math.random() * Math.PI * 2
+                });
+            }
+
+            return roofX + roofWidth;
+        }
+
+        function createParticles(x, y, color, count = 8) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 6,
+                    vy: (Math.random() - 0.5) * 6 - 1,
+                    size: 3 + Math.random() * 4,
+                    color: color,
+                    alpha: 1,
+                    life: 20 + Math.random() * 15
+                });
+            }
+        }
+
+        function addFloatingText(x, y, text, color = '#fbbf24') {
+            floatingTexts.push({
+                x: x,
+                y: y,
+                text: text,
+                color: color,
+                alpha: 1,
+                vy: -1.8
+            });
+        }
+
+        function updateParticlesAndText() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= 1 / p.life;
+                if (p.alpha <= 0) particles.splice(i, 1);
+            }
+
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                let ft = floatingTexts[i];
+                ft.y += ft.vy;
+                ft.alpha -= 0.025;
+                if (ft.alpha <= 0) floatingTexts.splice(i, 1);
+            }
+        }
+
+        let cachedSkyGradient = null;
+
+        function drawBackground() {
+            if (!cachedSkyGradient) {
+                cachedSkyGradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
+                cachedSkyGradient.addColorStop(0, '#0f172a');
+                cachedSkyGradient.addColorStop(0.45, '#31103f');
+                cachedSkyGradient.addColorStop(0.8, '#7c2d12');
+                cachedSkyGradient.addColorStop(1, '#f59e0b');
+            }
+            ctx.fillStyle = cachedSkyGradient;
+            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+            ctx.fillStyle = '#fef3c7';
+            ctx.beginPath();
+            ctx.arc(680, 80, 36, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(254, 243, 199, 0.15)';
+            ctx.beginPath();
+            ctx.arc(680, 80, 52, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Mountains
+            ctx.fillStyle = '#1e1b4b';
+            ctx.beginPath();
+            ctx.moveTo(0, GAME_HEIGHT);
+            for (let i = 0; i <= GAME_WIDTH; i += 50) {
+                let mountainY = 240 + Math.sin((i + cameraX * 0.1) * 0.008) * 45;
+                ctx.lineTo(i, mountainY);
+            }
+            ctx.lineTo(GAME_WIDTH, GAME_HEIGHT);
+            ctx.fill();
+
+            ctx.fillStyle = '#020617';
+            ctx.beginPath();
+            ctx.moveTo(0, GAME_HEIGHT);
+            for (let i = 0; i <= GAME_WIDTH; i += 40) {
+                let ridgeY = 300 + Math.cos((i + cameraX * 0.25) * 0.012) * 35;
+                ctx.lineTo(i, ridgeY);
+            }
+            ctx.lineTo(GAME_WIDTH, GAME_HEIGHT);
+            ctx.fill();
+        }
+
+        function drawRooftops() {
+            for (let roof of rooftops) {
+                let screenX = roof.x - cameraX;
+                if (screenX + roof.width < -50 || screenX > GAME_WIDTH + 50) continue;
+
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(screenX, roof.y, roof.width, roof.height);
+
+                ctx.fillStyle = '#0f172a';
+                ctx.beginPath();
+                ctx.moveTo(screenX - 10, roof.y + 12);
+                ctx.quadraticCurveTo(screenX + roof.width / 2, roof.y - 8, screenX + roof.width + 10, roof.y + 12);
+                ctx.lineTo(screenX + roof.width, roof.y + 22);
+                ctx.quadraticCurveTo(screenX + roof.width / 2, roof.y + 4, screenX, roof.y + 22);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.strokeStyle = '#d97706';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                ctx.fillStyle = '#b45309';
+                ctx.beginPath();
+                ctx.arc(screenX - 8, roof.y + 10, 8, 0, Math.PI * 2);
+                ctx.arc(screenX + roof.width + 8, roof.y + 10, 8, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = '#334155';
+                ctx.lineWidth = 2;
+                for (let tx = 20; tx < roof.width - 20; tx += 25) {
+                    ctx.beginPath();
+                    ctx.moveTo(screenX + tx, roof.y + 15);
+                    ctx.lineTo(screenX + tx, roof.y + roof.height);
+                    ctx.stroke();
+                }
+            }
+
+            for (let pole of wirePoles) {
+                let screenX = pole.x - cameraX;
+                if (screenX < -50 || screenX > GAME_WIDTH + 50) continue;
+
+                ctx.fillStyle = '#78350f';
+                ctx.fillRect(screenX - 4, pole.y, 8, GAME_HEIGHT - pole.y);
+
+                ctx.fillStyle = '#451a03';
+                ctx.fillRect(screenX - 14, pole.y + 8, 28, 6);
+
+                ctx.fillStyle = '#fbbf24';
+                ctx.beginPath();
+                ctx.arc(screenX, pole.y, 10, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(screenX, pole.y, 13 + Math.sin(frameCount * 0.15) * 3, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        }
+
+        function drawCoins() {
+            for (let coin of coins) {
+                if (coin.collected) continue;
+                let screenX = coin.x - cameraX;
+                if (screenX < -30 || screenX > GAME_WIDTH + 30) continue;
+
+                let floatY = coin.y + Math.sin(frameCount * 0.1 + coin.animOffset) * 4;
+
+                ctx.save();
+                ctx.translate(screenX, floatY);
+
+                if (coin.type === 'goldbar') {
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.strokeStyle = '#fffbeb';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.roundRect(-12, -7, 24, 14, 4);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#78350f';
+                    ctx.font = 'bold 9px sans-serif';
+                    ctx.fillText('金', -4, 3);
+                } else {
+                    let baseColor = coin.type === 'gold' ? '#f59e0b' : (coin.type === 'silver' ? '#cbd5e1' : '#d97706');
+                    let borderColor = coin.type === 'gold' ? '#fef08a' : (coin.type === 'silver' ? '#f1f5f9' : '#f97316');
+
+                    ctx.fillStyle = baseColor;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 11, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.strokeStyle = borderColor;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#0f172a';
+                    ctx.fillRect(-3, -3, 6, 6);
+                }
+
+                ctx.restore();
+            }
+        }
+
+        function checkCoinCollisions() {
+            let catWorldX = cat.x + cameraX + cat.width / 2;
+            let catWorldY = cat.y + cat.height / 2;
+
+            for (let coin of coins) {
+                if (coin.collected) continue;
+
+                let dx = catWorldX - coin.x;
+                let dy = catWorldY - coin.y;
+                let dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist < 28) {
+                    coin.collected = true;
+                    
+                    // 콤보 로직
+                    combo++;
+                    comboTimer = 160; // 콤보 유지 시간 (약 2.5초)
+                    
+                    comboContainer.classList.remove('hidden');
+                    comboContainer.classList.add('scale-110');
+                    comboText.textContent = combo;
+                    setTimeout(() => comboContainer.classList.remove('scale-110'), 100);
+
+                    // 콤보 보너스 점수 (최대 +50점)
+                    let comboBonus = Math.min(combo * 2, 50);
+                    score += coin.value + comboBonus;
+                    
+                    scoreText.textContent = score.toLocaleString();
+
+                    sound.playCoin(coin.type === 'gold' || coin.type === 'goldbar');
+                    createParticles(coin.x, coin.y, coin.type === 'gold' ? '#fbbf24' : '#cbd5e1', 6);
+                    
+                    addFloatingText(coin.x - cameraX, coin.y - 10, `+${coin.value + comboBonus}`, coin.type === 'goldbar' ? '#f59e0b' : '#38bdf8');
+                    
+                    // 2콤보 이상일 때 화려한 이펙트 텍스트 팝업
+                    if (combo > 1) {
+                        addFloatingText(coin.x - cameraX, coin.y - 30, `${combo} COMBO!`, '#f43f5e');
+                    }
+                }
+            }
+        }
+
+        function updateGame() {
+            if (gameState !== 'PLAYING') return;
+
+            frameCount++;
+            
+            // 콤보 타이머 차감
+            if (comboTimer > 0) {
+                comboTimer--;
+                if (comboTimer === 0) {
+                    combo = 0; // 콤보 초기화
+                    comboContainer.classList.add('hidden');
+                }
+            }
+
+            cameraX += gameSpeed;
+            distance = Math.floor(cameraX / 20);
+            distanceText.textContent = `${distance}m`;
+
+            if (distance >= 1000) {
+                distance = 1000;
+                distanceText.textContent = '1000m';
+                triggerGameClear();
+                return;
+            }
+
+            // 충분히 반응할 시간을 주면서 거리에 따라 천천히 속도를 높인다.
+            if (frameCount % 240 === 0) {
+                gameSpeed = Math.min(gameSpeed + 0.1, 7.0);
+            }
+
+            cat.update();
+
+            if (cat.y > GAME_HEIGHT + 60) {
+                sound.playFall();
+                triggerGameOver(false);
+                return;
+            }
+
+            checkCoinCollisions();
+
+            let lastRoof = rooftops[rooftops.length - 1];
+            if (lastRoof.x - cameraX < GAME_WIDTH + 400) {
+                generateNextRooftop(lastRoof.x + lastRoof.width);
+            }
+
+            // [최적화] 화면 밖으로 완전히 벗어난 객체들은 즉시 배열에서 제거하여 메모리 누수 및 연산량 감소
+            while (rooftops.length > 0 && rooftops[0].x + rooftops[0].width - cameraX < -200) rooftops.shift();
+            while (wirePoles.length > 0 && wirePoles[0].x - cameraX < -200) wirePoles.shift();
+            while (coins.length > 0 && coins[0].x - cameraX < -200) coins.shift();
+
+            updateParticlesAndText();
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+            drawBackground();
+            drawRooftops();
+            drawCoins();
+            cat.draw();
+
+            for (let p of particles) {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = Math.max(0, p.alpha);
+                ctx.beginPath();
+                ctx.arc(p.x - cameraX, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+
+            for (let ft of floatingTexts) {
+                ctx.fillStyle = ft.color;
+                ctx.globalAlpha = Math.max(0, ft.alpha);
+                ctx.font = 'bold 16px Jua, sans-serif';
+                ctx.fillText(ft.text, ft.x, ft.y);
+            }
+            ctx.globalAlpha = 1.0;
+        }
+
+        function gameLoop() {
+            updateGame();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            sound.init();
+            sound.startBGM(); // 게임 시작 시 BGM 재생
+            gameState = 'PLAYING';
+            score = 0;
+            distance = 0;
+            gameSpeed = 4.3;
+            cameraX = 0;
+            frameCount = 0;
+            
+            combo = 0;
+            comboTimer = 0;
+            comboContainer.classList.add('hidden');
+
+            scoreText.textContent = '0';
+            distanceText.textContent = '0m';
+            
+            if (cameraActive) {
+                controlStatus.textContent = '모션 인식 중...';
+            } else {
+                controlStatus.textContent = '달리는 중...';
+            }
+
+            cat.reset();
+            generateInitialWorld();
+
+            startOverlay.classList.add('hidden');
+            gameOverOverlay.classList.add('hidden');
+        }
+
+        function triggerGameClear() {
+            gameState = 'GAMEOVER';
+            controlStatus.textContent = '1000m 완주!';
+            sound.stopBGM(); // 게임 종료 시 BGM 정지
+            sound.playWin();
+
+            for (let i = 0; i < 60; i++) {
+                createParticles(cameraX + GAME_WIDTH / 2 + (Math.random() - 0.5) * 300, 150 + (Math.random() - 0.5) * 100, '#fbbf24', 2);
+            }
+
+            const titleEl = document.getElementById('resultTitle');
+            const subEl = document.getElementById('resultSub');
+
+            titleEl.textContent = '🎉 완주 성공!';
+            titleEl.className = 'text-3xl sm:text-4xl font-black text-amber-400 mb-2 tracking-wider';
+            subEl.textContent = '축하합니다! 1000m 목표 지점에 무사히 도달했습니다!';
+
+            showResultModal();
+        }
+
+        function triggerGameOver(isClear = false) {
+            gameState = 'GAMEOVER';
+            controlStatus.textContent = '게임 오버';
+            sound.stopBGM(); // 게임 오버 시 BGM 정지
+
+            const titleEl = document.getElementById('resultTitle');
+            const subEl = document.getElementById('resultSub');
+
+            titleEl.textContent = '아쉽군요!';
+            titleEl.className = 'text-3xl sm:text-4xl font-black text-rose-500 mb-2 tracking-wider';
+            subEl.textContent = '고군이가 지붕 아래로 떨어졌습니다.';
+
+            showResultModal();
+        }
+
+        function showResultModal() {
+            document.getElementById('finalScore').textContent = score.toLocaleString();
+            document.getElementById('finalDistance').textContent = `${distance}m`;
+
+            const newHighContainer = document.getElementById('newHighContainer');
+            if (score > highScore) {
+                highScore = score;
+                try {
+                    localStorage.setItem('gogun_highscore', highScore.toString());
+                } catch (e) {}
+                highScoreText.textContent = highScore.toLocaleString();
+                newHighContainer.classList.remove('hidden');
+            } else {
+                newHighContainer.classList.add('hidden');
+            }
+
+            gameOverOverlay.classList.remove('hidden');
+        }
+
+        // Action Trigger for Manual Jump / Wire Plunger
+        function handleActionStart() {
+            sound.init();
+            if (gameState === 'START') {
+                startGame();
+            } else if (gameState === 'PLAYING') {
+                cat.jump();
+            }
+        }
+
+        // =========================================================================
+        // MediaPipe Pose Motion Tracking Integration (hop-hop-jump-detection logic)
+        // =========================================================================
+        let cameraActive = false;
+        let cameraUtilsInstance = null;
+        let poseInstance = null;
+        let isPoseProcessing = false; // 연산 중복 실행 방지용 플래그
+        
+        // [강력 최적화] AI 연산 강제 쿨타임 지정 (120ms = 초당 8프레임. 렉 방지 극대화)
+        let lastPoseTime = 0;
+        const POSE_INTERVAL_MS = 120; 
+
+        // Motion analysis threshold dynamic tracking state
+        let hipYHistory = [];
+        const HISTORY_SIZE = 8;
+        let lastJumpTimestamp = 0;
+        const JUMP_COOLDOWN_MS = 400; // Prevention of double jumps
+
+        function initPoseTracking() {
+            poseInstance = new Pose({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+            });
+
+            poseInstance.setOptions({
+                modelComplexity: 0, // [최적화] 가장 가벼운 0단계(Lite) 모델 강제 지정
+                smoothLandmarks: true,
+                enableSegmentation: false,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+
+            poseInstance.onResults(onPoseResults);
+
+            cameraUtilsInstance = new Camera(webcamVideo, {
+                onFrame: async () => {
+                    const now = Date.now();
+                    // [최적화] 이전 작업이 끝났고 지정된 쿨타임이 지났을 때만 AI 실행
+                    if (cameraActive && !isPoseProcessing && (now - lastPoseTime > POSE_INTERVAL_MS)) {
+                        isPoseProcessing = true;
+                        lastPoseTime = now;
+                        try {
+                            await poseInstance.send({ image: webcamVideo });
+                        } finally {
+                            isPoseProcessing = false;
+                        }
+                    }
+                },
+                // [최고 수준 최적화] AI에 전달하는 영상 크기를 160x120으로 4배 축소하여 연산량 75% 제거
+                width: 160,
+                height: 120
+            });
+        }
+
+        function onPoseResults(results) {
+            if (!cameraActive) return;
+
+            const ctx = getPoseContext();
+            if (!ctx) return;
+
+            ctx.save();
+            // [최적화] 무거운 drawImage(비디오 복사)를 지우고 캔버스를 완전히 비우기만 함
+            ctx.clearRect(0, 0, poseCanvas.width, poseCanvas.height);
+
+            if (results.poseLandmarks) {
+                // [최고 수준 최적화] 전신 뼈대(33개 점 + 수십 개 선)를 그리는 무거운 함수 제거
+                // 트래킹에 실제 사용되는 4개 핵심 포인트만 단순 사각형으로 가볍게 렌더링
+                ctx.fillStyle = '#ef4444';
+                const drawKeypoint = (idx) => {
+                    const pt = results.poseLandmarks[idx];
+                    if (pt && pt.visibility > 0.4) {
+                        ctx.fillRect(pt.x * poseCanvas.width - 3, pt.y * poseCanvas.height - 3, 6, 6);
+                    }
+                };
+                drawKeypoint(12); // Right Shoulder
+                drawKeypoint(16); // Right Wrist
+                drawKeypoint(23); // Left Hip
+                drawKeypoint(24); // Right Hip
+
+                // Analyze Motion Keypoints safely
+                try {
+                    analyzePoseMotion(results.poseLandmarks);
+                } catch (e) {
+                    console.error("Motion Analysis Error: ", e);
+                }
+            }
+
+            ctx.restore();
+        }
+
+        function analyzePoseMotion(landmarks) {
+            // MediaPipe Pose keypoint landmarks:
+            // 12: RIGHT_SHOULDER, 14: RIGHT_ELBOW, 16: RIGHT_WRIST
+            // 23: LEFT_HIP, 24: RIGHT_HIP
+            const rightShoulder = landmarks[12];
+            const rightWrist = landmarks[16];
+            const leftHip = landmarks[23];
+            const rightHip = landmarks[24];
+
+            if (!leftHip || !rightHip || !rightShoulder || !rightWrist) return;
+
+            // 1. Calculate Average Hip Y (In Canvas normalized coords 0~1 where 0 is top)
+            const currentAvgHipY = (leftHip.y + rightHip.y) / 2;
+
+            // Maintain sliding window history of hip levels
+            hipYHistory.push(currentAvgHipY);
+            if (hipYHistory.length > HISTORY_SIZE) {
+                hipYHistory.shift();
+            }
+
+            // 2. Check Right Arm Extension
+            // If right wrist is higher than right shoulder (y is inverted) or substantially extended upwards
+            const isRightArmExtended = rightWrist.y < (rightShoulder.y - 0.05);
+
+            if (isRightArmExtended) {
+                if (armIndicator) armIndicator.className = 'bg-orange-500 text-slate-950 px-1.5 py-0.5 rounded font-bold transition';
+                window.isRightArmExtended = true;
+            } else {
+                if (armIndicator) armIndicator.className = 'bg-slate-800/90 text-slate-400 px-1.5 py-0.5 rounded font-bold transition';
+                window.isRightArmExtended = false;
+            }
+
+            // 3. Jump Detection (Hop Detection via Vertical Displacement)
+            // A jump is registered if current hip position goes UP significantly below baseline min (y drops)
+            let isJumpingMotion = false;
+            if (hipYHistory.length >= HISTORY_SIZE) {
+                const baselineAvgY = hipYHistory.slice(0, HISTORY_SIZE - 2).reduce((a, b) => a + b, 0) / (HISTORY_SIZE - 2);
+                const jumpDisplacementThreshold = 0.038; // Upward displacement threshold
+
+                // Notice: In Web Image coordinates, upwards movement = decreasing Y
+                if ((baselineAvgY - currentAvgHipY) > jumpDisplacementThreshold) {
+                    isJumpingMotion = true;
+                }
+            }
+
+            const now = Date.now();
+            if (isJumpingMotion && (now - lastJumpTimestamp > JUMP_COOLDOWN_MS)) {
+                lastJumpTimestamp = now;
+
+                // Visual Feedback Badge
+                if (jumpIndicator) {
+                    jumpIndicator.className = 'bg-amber-400 text-slate-950 px-1.5 py-0.5 rounded font-bold transition scale-110';
+                    setTimeout(() => {
+                        if (jumpIndicator) jumpIndicator.className = 'bg-slate-800/90 text-slate-400 px-1.5 py-0.5 rounded font-bold transition';
+                    }, 300);
+                }
+
+                // Dispatch Game Jump / Wire Action Trigger
+                handleActionStart();
+            }
+        }
+
+        // Camera Toggle Control Function
+        async function toggleWebcam() {
+            if (!cameraActive) {
+                try {
+                    if (!poseInstance) {
+                        initPoseTracking();
+                    }
+                    await cameraUtilsInstance.start();
+                    cameraActive = true;
+                    camBtnText.textContent = '웹캠 끄기';
+                    toggleCameraBtn.className = 'bg-rose-700 hover:bg-rose-600 px-3 py-1.5 rounded-xl text-xs font-bold text-white border border-rose-400/50 transition active:scale-95 flex items-center gap-1.5';
+                    cameraPreviewContainer.classList.remove('hidden');
+
+                    motionStatusBadge.className = 'w-3 h-3 rounded-full bg-emerald-400 animate-ping';
+                    motionStatusText.textContent = '모션 인식 중';
+                    controlStatus.textContent = '모션 트래킹 가동됨';
+                } catch (err) {
+                    console.error('Camera Access Error:', err);
+                    alert('카메라 접근 권한을 허용해주세요.');
+                }
+            } else {
+                cameraActive = false;
+                if (cameraUtilsInstance) {
+                    await cameraUtilsInstance.stop();
+                }
+                camBtnText.textContent = '웹캠 켜기';
+                toggleCameraBtn.className = 'bg-emerald-700 hover:bg-emerald-600 px-3 py-1.5 rounded-xl text-xs font-bold text-white border border-emerald-400/50 transition active:scale-95 flex items-center gap-1.5';
+                cameraPreviewContainer.classList.add('hidden');
+
+                motionStatusBadge.className = 'w-3 h-3 rounded-full bg-slate-500';
+                motionStatusText.textContent = '웹캠 꺼짐';
+                controlStatus.textContent = '준비됨';
+            }
+        }
+
+        toggleCameraBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleWebcam();
+        });
+
+        // Keyboard Controls
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' || e.code === 'ArrowUp') {
+                e.preventDefault();
+                if (!e.repeat) handleActionStart();
+                // 스페이스바를 누르고 있으면 오른팔을 뻗은 것과 같은 효과 부여
+                window.isRightArmExtended = true; 
+            }
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'Space' || e.code === 'ArrowUp') {
+                window.isRightArmExtended = false;
+            }
+        });
+
+        // Mouse & Touch Controls
+        const gameArea = document.getElementById('gameArea');
+        gameArea.addEventListener('mousedown', (e) => {
+            if (e.target.closest('#toggleCameraBtn') || e.target.closest('#cameraPreviewContainer')) return;
+            e.preventDefault();
+            handleActionStart();
+            window.isRightArmExtended = true;
+        });
+        window.addEventListener('mouseup', () => { window.isRightArmExtended = false; });
+
+        gameArea.addEventListener('touchstart', (e) => {
+            if (e.target.closest('#toggleCameraBtn') || e.target.closest('#cameraPreviewContainer')) return;
+            e.preventDefault();
+            handleActionStart();
+            window.isRightArmExtended = true;
+        }, { passive: false });
+        window.addEventListener('touchend', () => { window.isRightArmExtended = false; });
+
+        mobileJumpBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            handleActionStart();
+            window.isRightArmExtended = true;
+        });
+        mobileJumpBtn.addEventListener('mouseup', () => { window.isRightArmExtended = false; });
+        mobileJumpBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            handleActionStart();
+            window.isRightArmExtended = true;
+        }, { passive: false });
+        mobileJumpBtn.addEventListener('touchend', () => { window.isRightArmExtended = false; });
+
+
+        // UI Buttons
+        startBtn.addEventListener('click', startGame);
+        restartBtn.addEventListener('click', startGame);
+
+        soundBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sound.muted = !sound.muted;
+            soundIconOn.classList.toggle('hidden', sound.muted);
+            soundIconOff.classList.toggle('hidden', !sound.muted);
+        });
+
+        // On Load initialization
+        window.onload = function() {
+            const pCanvas = document.getElementById('poseCanvas');
+            if (pCanvas) {
+                pCanvas.width = 192;
+                pCanvas.height = 144;
+            }
+            generateInitialWorld();
+            gameLoop();
+        };
+    </script>
+</body>
+</html>

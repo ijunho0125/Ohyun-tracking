@@ -59,3 +59,62 @@ label,.inline-check{font-size:18px!important}input:not([type=checkbox]):not([typ
 .game-view:has(.game-stage.tetris) .practice-strip strong,.game-view:has(.game-stage.tetris) .practice-checks span{font-size:15px}
 .game-view:has(.game-stage.tetris) .practice-checks{margin:0;gap:10px}
 .game-view:has(.game-stage.tetris) .practice-strip .primary{min-height:40px;padding:5px 12px;font-size:16px}
+
+/* Portrait screens need a compact game shell and a scrollable lobby. */
+@media (orientation: portrait) and (max-width: 800px){
+ body{min-width:0}
+ .page-lobby .header-inner{min-height:0;padding:8px 12px;gap:8px;flex-wrap:wrap}
+ .page-lobby .brand,.page-lobby .brand img{width:155px;flex-basis:155px}
+ .page-lobby .header-settings{margin-left:auto;min-height:40px;padding:5px 8px;font-size:14px}
+ .page-lobby .site-header nav{order:3;width:100%;overflow-x:auto;justify-content:flex-start}
+ .page-lobby .site-header nav button{white-space:nowrap;min-height:40px;padding:5px 10px;font-size:14px}
+ .page-lobby .content-lobby{display:flex;overflow:auto;padding:16px;gap:18px}
+ .page-lobby .lobby-games{flex:none;gap:14px}
+ .page-lobby .section-heading{align-items:flex-start;flex-direction:column;gap:8px}
+ .page-lobby .lobby-games h1{font-size:25px}
+ .page-lobby .section-heading p,.page-lobby .connection-state{font-size:14px}
+ .page-lobby .lobby-status{justify-content:flex-start}
+ .page-lobby .games-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .page-lobby .game-card{min-height:200px}
+ .page-lobby .game-art{min-height:85px}
+ .page-lobby .game-card-body{padding:10px}
+ .page-lobby .game-title h3{font-size:19px}
+ .page-lobby .game-card-body>p,.page-lobby .card-bottom{font-size:13px;line-height:1.4}
+ .page-lobby .game-type{font-size:13px}
+ .page-lobby .lobby-camera{width:100%}
+ .page-lobby .app-footer{display:none}
+
+ .game-view:has(.game-stage.tetris) .game-heading{gap:4px;padding:4px 6px}
+ .game-view:has(.game-stage.tetris) .game-heading h1,.game-view:has(.game-stage.tetris) .game-score.best,.game-view:has(.game-stage.tetris) .game-score>span{display:none}
+ .game-view:has(.game-stage.tetris) .game-heading .back-button,.game-view:has(.game-stage.tetris) .game-actions .small-button{min-height:40px;padding:4px 7px;font-size:14px}
+ .game-view:has(.game-stage.tetris) .game-score{margin-left:auto}
+ .game-view:has(.game-stage.tetris) .game-score strong{font-size:19px}
+ .game-view:has(.game-stage.tetris) .game-actions{gap:4px}
+ .game-view:has(.game-stage.tetris) .game-actions button>span{display:none}
+ .game-view:has(.game-stage.tetris) .camera-floating{top:58px;width:120px}
+ .game-view:has(.game-stage.tetris) .camera-right{right:4px}
+ .game-view:has(.game-stage.tetris) .camera-left{left:4px}
+ .game-view:has(.game-stage.tetris) .camera-panel{padding:5px}
+ .game-view:has(.game-stage.tetris) .camera-floating .panel-heading{font-size:12px;gap:2px;margin:0}
+ .game-view:has(.game-stage.tetris) .camera-floating .panel-heading>span:first-child{font-size:0;gap:0}
+ .game-view:has(.game-stage.tetris) .camera-fold{font-size:12px;min-height:32px}
+ .game-view:has(.game-stage.tetris) .camera-position{display:none}
+ .game-view:has(.game-stage.tetris) .camera-floating .tracking-hint,.game-view:has(.game-stage.tetris) .camera-floating .detected-hands{font-size:12px}
+ .game-view:has(.game-stage.tetris) .camera-floating .camera-tools .small-button,.game-view:has(.game-stage.tetris) .camera-floating .camera-tools .inline-check{font-size:12px!important}
+ .game-view[data-input=keyboard]:has(.game-stage.tetris) .camera-floating,.game-view[data-phase=setup]:has(.game-stage.tetris) .camera-floating,.game-view[data-phase=paused]:has(.game-stage.tetris) .camera-floating,.game-view[data-phase=over]:has(.game-stage.tetris) .camera-floating{display:none}
+ .game-view:has(.game-stage.tetris) .game-overlay,.game-view:has(.game-stage.tetris) .countdown{padding:12px;overflow:auto}
+ .game-view:has(.game-stage.tetris) .overlay-card{max-width:100%;width:100%;max-height:100%;gap:10px}
+ .game-view:has(.game-stage.tetris) .overlay-card h2{font-size:23px}
+ .game-view:has(.game-stage.tetris) .overlay-card p{font-size:16px}
+ .game-view:has(.game-stage.tetris) .overlay-card .segmented{max-width:100%}
+ .game-view:has(.game-stage.tetris) .overlay-card .segmented button{min-width:0;padding:6px 8px;font-size:14px}
+ .game-view:has(.game-stage.tetris) .play-toolbar{left:6px;right:6px;bottom:6px;min-height:40px;padding:4px 8px;gap:6px}
+ .game-view:has(.game-stage.tetris) .play-toolbar .input-feedback{display:none}
+ .game-view:has(.game-stage.tetris) .play-toolbar .motion-guide,.game-view:has(.game-stage.tetris) .play-toolbar .key-guide{margin:0;font-size:12px}
+ .game-view:has(.game-stage.tetris) .play-toolbar .pause-hint{font-size:12px}
+ .game-view:has(.game-stage.tetris) .practice-strip{left:6px;right:6px;bottom:52px;min-height:0;padding:6px 8px;gap:6px;flex-direction:column;align-items:stretch}
+ .game-view:has(.game-stage.tetris) .practice-strip>div{display:block}
+ .game-view:has(.game-stage.tetris) .practice-strip strong,.game-view:has(.game-stage.tetris) .practice-checks span{font-size:12px}
+ .game-view:has(.game-stage.tetris) .practice-checks{gap:2px 8px}
+ .game-view:has(.game-stage.tetris) .practice-strip .primary{min-height:36px;font-size:14px}
+}

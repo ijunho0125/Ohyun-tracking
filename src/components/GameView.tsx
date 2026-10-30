@@ -18,7 +18,7 @@ export function GameView({ id,settings,frame,camera,character,connect,back,editC
   const pose=useRef(new PoseControls()), tetris=useRef(new TetrisControls()), phaseRef=useRef(phase), lastValid=useRef(0), countdownStart=useRef(0), resume=useRef(false), keys=useRef(new Set<string>()), balanceCenter=useRef(0), actionSet=useRef(new Set<string>()), live=useRef(true);
   const settingsRef=useRef(settings); settingsRef.current=settings; phaseRef.current=phase;
   const changePhase=(next:Phase)=>{phaseRef.current=next;setPhase(next);};
-  const motionHandler=useRef<(next:MotionFrame)=>void>(()=>{});
+  const motionHandler=useRef<(next:MotionFrame)=>void>(()=>{}), pendingCatJump=useRef(0);
   // Retries recalibrate before countdown; initial setup still leads to practice.
   const calibrationNext=useRef<'practice'|'countdown'>('practice'), trackingValid=useRef(false), trackingStarted=useRef(0);
   const controlPhase=useRef({phase,inputMode});
@@ -31,17 +31,18 @@ export function GameView({ id,settings,frame,camera,character,connect,back,editC
     return new SourceGame(id,settings,event);
   },[id]);
   const mark=(key:string)=>{if(!actionSet.current.has(key)){actionSet.current.add(key);setAchievements([...actionSet.current]);}};
-  const command=(c:Command)=>{
-    if(phaseRef.current!=='running'&&phaseRef.current!=='practice')return;
-    if(id==='balance'&&c.type!=='tilt')return;
-    game.command(c); onActivity(c);
-    if(c.type==='jump'){setFeedback('점프 인식됨');mark('jump');}
-    if(c.type==='duck'&&c.value){setFeedback('숙이기 인식됨');mark('duck');}
+  const command=(c:Command,catMotionJump=false)=>{
+    if(phaseRef.current!=='running'&&phaseRef.current!=='practice')return false;
+    if(id==='balance'&&c.type!=='tilt')return false;
+    if(catMotionJump){if(!game.motionJump())return false;}else game.command(c); onActivity(c);
+    if(c.type==='jump'){setFeedback('점프 인식됨');mark('jump');if(id==='cat'&&game.api?.snapshot().wire)mark('wire');}
+    if(c.type==='duck'&&c.value){setFeedback(id==='cat'?'와이어 인식됨':'숙이기 인식됨');mark(id==='cat'?'wire':'duck');}
     if(c.type==='move'){setFeedback(c.value<0?'왼쪽으로 이동':'오른쪽으로 이동');mark(c.value<0?'left':'right');}
     if(c.type==='rotate'){setFeedback('회전 인식됨');mark('rotate');}
     if(c.type==='hardDrop'){setFeedback('즉시 낙하 인식됨');mark('drop');}
     if(c.type==='softDrop'&&c.value){setFeedback('소프트 드롭 인식됨');mark('softDrop');}
     if(c.type==='tilt'&&Math.abs(c.value)>.06)mark('tilt');
+    return true;
   };
   const pause=(message='잠깐 쉬어가요')=>{if(!['running','practice','countdown'].includes(phaseRef.current))return;game.pause();game.release();keys.current.clear();pose.current.reset();tetris.current.reset();countdownStart.current=0;setReason(message);changePhase('paused');};
   const startPractice=()=>{if(game.state==='paused')game.resume();else{if(game.state==='over')game.restart();game.start();}lastValid.current=performance.now();changePhase('practice');};
@@ -66,28 +67,38 @@ export function GameView({ id,settings,frame,camera,character,connect,back,editC
     // Countdown already observes neutral poses. Keep that preparation at GO.
     const prepared=was.phase==='countdown'&&phase==='running'&&was.inputMode===inputMode;
     controlPhase.current={phase,inputMode};
-    onPhase(phase);game.release();keys.current.clear();
+    onPhase(phase);game.release();keys.current.clear();pendingCatJump.current=0;
     if(!prepared){tetris.current.reset();pose.current.reset();}
     lastValid.current=0;trackingValid.current=false;trackingStarted.current=performance.now();countdownStart.current=0;
-    camera.setMode(inputMode==='motion'&&['calibration','practice','countdown','running'].includes(phase)?'pose':'hand');
+    const active=['calibration','practice','countdown','running'].includes(phase);
+    if(active&&inputMode==='keyboard') camera.setTrackingEnabled(false);
+    else { camera.setMode(active?'pose':'hand'); camera.setTrackingEnabled(true); }
   },[phase,inputMode,id]);
+  useLayoutEffect(()=>()=>{camera.setMode('hand');camera.setTrackingEnabled(true);},[camera]);
   useEffect(()=>{if(inputMode==='motion'&&camera.status!=='ready'){game.release();tetris.current.reset();pose.current.reset();if(camera.status==='error'||camera.status==='off')pause('카메라 연결이 해제되어 멈췄어요.');}},[camera.status,inputMode]);
   useLayoutEffect(()=>{motionHandler.current=(frame:MotionFrame)=>{
     const phase=phaseRef.current;
     if(!live.current||document.hidden||inputMode!=='motion')return;
     // Consume results before React schedules preview/UI work. Stale inference
     // must not refresh tracking or complete an old gesture.
-    if(camera.status!=='ready'||!Number.isFinite(frame.time)||performance.now()-frame.time>350){trackingValid.current=false;game.release();tetris.current.reset();pose.current.reset();if(phase==='calibration')setProgress(0);return;}
+    if(camera.status!=='ready'||!Number.isFinite(frame.time)||performance.now()-frame.time>350){trackingValid.current=false;pendingCatJump.current=0;game.release();tetris.current.reset();pose.current.reset();if(phase==='calibration')setProgress(0);return;}
     if(phase==='calibration'){
-      const result=id==='tetris'?tetris.current.update(frame.hands,frame.pose,frame.time,frame.width/frame.height,settings):pose.current.update(frame.pose,frame.time,frame.width/frame.height,id==='balance'?{...settings,dinoMode:'body'}:settings,true);setProgress(result.progress);setFeedback(result.valid?'편하게 선 자세를 유지해주세요':id==='tetris'?'양팔과 몸이 보이게 해주세요':'어깨·골반과 필요한 손목이 보이게 해주세요');
+      const result=id==='tetris'?tetris.current.update(frame.hands,frame.pose,frame.time,frame.width/frame.height,settings):pose.current.update(frame.pose,frame.time,frame.width/frame.height,id==='balance'||id==='cat'?{...settings,dinoMode:'body'}:settings,true);setProgress(result.progress);setFeedback(result.valid?'편하게 선 자세를 유지해주세요':id==='tetris'?'양팔과 몸이 보이게 해주세요':'어깨·골반과 필요한 손목이 보이게 해주세요');
       if(result.valid)lastValid.current=frame.time;
       if(result.progress===1){if(calibrationNext.current==='countdown'){setFeedback('보정 완료! 잠시 후 시작해요');setCount(3);changePhase('countdown');}else{setFeedback('보정 완료! 동작을 연습해보세요');startPractice();}}return;
     }
     if(!['practice','countdown','running'].includes(phase))return;
-    const result=id==='tetris'?tetris.current.update(frame.hands,frame.pose,frame.time,frame.width/frame.height,settings):pose.current.update(frame.pose,frame.time,frame.width/frame.height,id==='balance'?{...settings,dinoMode:'body'}:settings,game instanceof SourceGame?game.grounded:true);
+    const result=id==='tetris'?tetris.current.update(frame.hands,frame.pose,frame.time,frame.width/frame.height,settings):pose.current.update(frame.pose,frame.time,frame.width/frame.height,id==='balance'||id==='cat'?{...settings,dinoMode:'body'}:settings,game instanceof SourceGame?game.grounded:true,'normal',id==='cat');
     trackingValid.current=result.valid&&result.progress===1;
-    if(trackingValid.current)lastValid.current=frame.time;else{game.release();setFeedback(id==='tetris'?'양팔과 몸을 화면 안에 넣어주세요':'어깨와 골반이 보이게 해주세요');}
-    if(trackingValid.current)for(const c of result.commands)command(c);
+    if(trackingValid.current)lastValid.current=frame.time;else{pendingCatJump.current=0;game.release();setFeedback(id==='tetris'?'양팔과 몸을 화면 안에 넣어주세요':'어깨와 골반이 보이게 해주세요');}
+    if(trackingValid.current){
+      for(const c of result.commands)if(id!=='cat')command(c);else if(c.type==='jump'&&['running','practice'].includes(phase)){pendingCatJump.current=command(c,true)?0:frame.time+250;}
+      if(id==='cat'){
+        const wrist=frame.pose[16], shoulder=frame.pose[12];
+        const visible=(p:typeof wrist)=>!!p&&Number.isFinite(p.y)&&p.y>=0&&p.y<=1&&(p.visibility??1)>=.55&&(p.presence??1)>=.55;
+        command({type:'duck',value:visible(wrist)&&visible(shoulder)&&wrist.y<shoulder.y});
+      }
+    }
   };});
   useLayoutEffect(()=>camera.subscribeFrame(next=>motionHandler.current(next)),[camera]);
   useEffect(()=>{
@@ -107,6 +118,7 @@ export function GameView({ id,settings,frame,camera,character,connect,back,editC
         if(p==='practice'&&id==='balance'&&actionSet.current.has('tilt')&&Math.abs(game.angle)<.3&&Math.abs(game.angularVelocity)<.5&&(inputMode==='keyboard'||now-lastValid.current<300)){balanceCenter.current+=dt;if(balanceCenter.current>1.2)mark('center');}else balanceCenter.current=0;
       }
       if(game instanceof SourceGame){game.practicing=p==='practice';game.update(dt);}
+      if(id==='cat'&&pendingCatJump.current){if(!['running','practice'].includes(p)||camera.status!=='ready'||!trackingValid.current||now-lastValid.current>350||now>pendingCatJump.current)pendingCatJump.current=0;else if(game.grounded){pendingCatJump.current=0;command({type:'jump'},true);}}
       raf=requestAnimationFrame(tick);
     };raf=requestAnimationFrame(tick);return()=>cancelAnimationFrame(raf);
   },[game,inputMode]);
@@ -117,6 +129,7 @@ export function GameView({ id,settings,frame,camera,character,connect,back,editC
       if(e.key==='Escape'){pause();return;}if(!['running','practice'].includes(phaseRef.current))return;
       keys.current.add(e.key.toLowerCase().startsWith('arrow')?e.key:e.key.toLowerCase());if(e.repeat&&[' ','ArrowUp'].includes(e.key))return;
       if(id==='dino'){if(e.key===' '||e.key==='ArrowUp')command({type:'jump'});if(e.key==='ArrowDown')command({type:'duck',value:true});}
+      if(id==='cat'){if(e.key===' '||e.key==='ArrowUp')command({type:'jump'});if(e.key==='ArrowDown')command({type:'duck',value:true});}
       if(id==='tetris'){if(e.key==='ArrowLeft'||e.key==='ArrowRight')command({type:'move',value:e.key==='ArrowLeft'?-1:1});if(e.key==='ArrowUp')command({type:'rotate'});if(e.key==='ArrowDown')command({type:'softDrop',value:true});if(e.key===' ')command({type:'hardDrop'});}
       if(id==='balance'&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','a','A','d','D','w','W','s','S'].includes(e.key))command({type:'tilt',value:['ArrowLeft','ArrowUp','a','A','w','W'].includes(e.key)?-.28:.28});
     };
@@ -132,18 +145,18 @@ export function GameView({ id,settings,frame,camera,character,connect,back,editC
   const prepare=()=>{if(!loaded)return;if(sound)enableSound();actionSet.current.clear();setAchievements([]);balanceCenter.current=0;if(inputMode==='motion'&&camera.status!=='ready'){connect();return;}if(inputMode==='motion')beginCalibration('practice');else{startPractice();setFeedback('화면의 조작을 직접 해보세요');}};
   const startCountdown=(isResume=false,mode=inputMode)=>{if(mode==='motion'&&camera.status!=='ready'){connect();return;}game.release();tetris.current.reset();pose.current.reset();resume.current=isResume;if(!isResume){game.restart();setScore(0);}setCount(3);if(mode==='motion'&&phaseRef.current!=='practice')beginCalibration('countdown');else changePhase('countdown');};
   const prepareMotion=()=>{chooseInput('motion');beginCalibration('practice');};
-  const info=gameInfo[id], control=id==='dino'&&inputMode==='motion'&&settings.dinoMode==='seated'?'손목을 어깨 위로 올려 점프 · 손을 내리면 다음 점프 준비':id==='balance'&&inputMode==='keyboard'?'캐릭터가 기운 반대 방향의 키를 눌러 바로잡기':info.control;
-  const required=id==='dino'?(inputMode==='motion'&&settings.dinoMode==='seated'?[['jump','손 올려 점프']]:[['jump','점프'],['duck','숙이기']]):id==='tetris'?[['left','왼쪽'],['right','오른쪽'],['softDrop','소프트 드롭'],['rotate','회전']]:[['tilt','몸 기울이기'],['center','균형 유지']];
+  const info=gameInfo[id], control=id==='dino'&&inputMode==='motion'&&settings.dinoMode==='seated'?'손목을 어깨 위로 올려 점프 · 손을 내리면 다음 점프 준비':id==='balance'&&inputMode==='keyboard'?'캐릭터가 기운 반대 방향의 키를 눌러 바로잡기':id==='cat'&&inputMode==='keyboard'?'Space / ↑ 점프 · 공중에서 다시 누르거나 ↓ 유지해 와이어':info.control;
+  const required=id==='dino'?(inputMode==='motion'&&settings.dinoMode==='seated'?[['jump','손 올려 점프']]:[['jump','점프'],['duck','숙이기']]):id==='cat'?[['jump','점프'],['wire','와이어']]:id==='tetris'?[['left','왼쪽'],['right','오른쪽'],['softDrop','소프트 드롭'],['rotate','회전']]:[['tilt','몸 기울이기'],['center','균형 유지']];
   useEffect(()=>{if(required.every(([key])=>achievements.includes(key))){onPracticeComplete?.();if(onPracticeComplete&&!immersive&&phaseRef.current==='practice')pause('연습을 마쳤어요. 아래의 연습 마치기를 선택해주세요.');}},[achievements]);
-  return <section className={`game-view ${immersive?'immersive':'embedded'}`} data-phase={phase} data-input={inputMode} data-source={`temp_gameFile/${id==='dino'?'공룡게임':id==='tetris'?'정보축전 2026 - 오현고 테트리스':'runner_balance_walk_with_picture_guide'}.html`}>
+  return <section className={`game-view ${immersive?'immersive':'embedded'}`} data-phase={phase} data-input={inputMode} data-source={`temp_gameFile/${id==='dino'?'공룡게임':id==='tetris'?'정보축전 2026 - 오현고 테트리스':id==='cat'?'ninja_rope':'runner_balance_walk_with_picture_guide'}.html`}>
   <header className="game-heading"><button data-hand className="back-button" onClick={back}><ArrowLeft size={17}/>로비</button><div><h1>{info.name}</h1></div><div className="game-score" aria-label={id==='balance'?'이동 거리':'현재 점수'}><span>{id==='balance'?'이동 거리':'점수'}</span><strong>{id==='balance'?(score/10).toFixed(1)+'m':String(score).padStart(5,'0')}</strong></div><div className="game-score best"><span>최고 기록</span><strong>{id==='balance'?(bestScore(scoreId)/10).toFixed(1)+'m':String(bestScore(scoreId)).padStart(5,'0')}</strong></div><div className="game-actions">{id==='tetris'&&<button data-hand className="small-button" onClick={()=>openLeaderboard()} disabled={!loaded}>순위판</button>}<button data-hand className="small-button" aria-label="일시정지" disabled={!['running','practice','countdown'].includes(phase)} onClick={()=>pause()}><Pause size={18}/><span>일시정지</span></button><button data-hand className="small-button sound-button" aria-label={soundBlocked?'소리 시작':sound?'소리 끄기':'소리 켜기'} aria-pressed={sound&&!soundBlocked} onClick={()=>{if(!sound||soundBlocked)enableSound();else setSound(false);}}>{sound&&!soundBlocked?<Volume2 size={22}/>:<VolumeX size={22}/>}<span>{soundBlocked?'소리 시작':sound?'소리 켜짐':'소리 꺼짐'}</span></button>{immersive&&<button data-hand className="small-button" aria-label={fullscreen?'전체화면 해제':'전체화면'} onClick={toggleFullscreen}>{fullscreen?<Minimize2 size={18}/>:<Maximize2 size={18}/>}</button>}</div></header>
-  <div className="play-layout"><section className="play-main"><div className={`game-stage ${info.color} ${id}`}><aside className={`play-side camera-floating camera-${cameraSide}`} aria-label="게임 위 카메라"><button data-hand className="camera-position" onClick={()=>setCameraSide(side=>side==='right'?'left':'right')} aria-label="카메라 위치 바꾸기"><MoveHorizontal size={20}/><span>위치 바꾸기</span></button><CameraPanel camera={camera} frame={frame} connect={connect} compact/></aside><iframe className="source-game" title={`${info.name} 원본 게임`} srcDoc={source} tabIndex={-1} onLoad={e=>{const ready=game.attach(e.currentTarget);setLoaded(ready);setLoadError(!ready);}}/>
+  <div className="play-layout"><section className="play-main"><div className={`game-stage ${info.color} ${id}`}><aside className={`play-side camera-floating camera-${cameraSide}`} aria-label="게임 위 카메라"><button data-hand className="camera-position" onClick={()=>setCameraSide(side=>side==='right'?'left':'right')} aria-label="카메라 위치 바꾸기"><MoveHorizontal size={20}/><span>위치 바꾸기</span></button><CameraPanel camera={camera} frame={frame} connect={connect} compact collapseInPortrait={id==='tetris'}/></aside><iframe className="source-game" title={`${info.name} 원본 게임`} srcDoc={source} tabIndex={-1} onLoad={e=>{const ready=game.attach(e.currentTarget);setLoaded(ready);setLoadError(!ready);}}/>
   {phase==='setup'&&<div className="game-overlay"><div className="overlay-card"><span className={`tag ${info.color}`}>READY TO PLAY</span><h2>{info.description}</h2><p>{control}{id==='dino'&&<><br/>노란 코인 하나당 20점!</>}</p><div className="segmented"><button data-hand className={inputMode==='motion'?'active':''} onClick={()=>chooseInput('motion')}><ScanLine size={15}/>모션으로</button><button data-hand className={inputMode==='keyboard'?'active':''} onClick={()=>chooseInput('keyboard')}><Keyboard size={15}/>키보드로</button></div>{(id==='tetris'||id==='balance')&&<div className="segmented difficulty-choice" aria-label={`${info.name} 난이도`}>{id==='tetris'&&<button data-hand className={difficulty==='VERY_EASY'?'active':''} onClick={()=>setDifficulty('VERY_EASY')}>매우 쉬움</button>}<button data-hand className={difficulty==='EASY'?'active':''} onClick={()=>setDifficulty('EASY')}>쉬움</button><button data-hand className={difficulty==='HARD'?'active':''} onClick={()=>setDifficulty('HARD')}>{id==='tetris'?'어려움 · 방해 블록':'어려움'}</button></div>}{id==='dino'&&<label className="scene-choice">배경<select value={scene} onChange={e=>setScene(e.target.value)}><option value="day">낮</option><option value="spring">봄낮</option><option value="beach">바다</option><option value="bright-night">초저녁</option><option value="desert">사막 노을</option></select></label>}{id==='dino'&&<button data-hand className="text-button" onClick={editCharacter}>현재 캐릭터: {character?.name??'원본 병아리'} · 바꾸기 →</button>}{id==='balance'&&<button data-hand className="text-button" onClick={()=>setShowBalanceGuide(true)}>그림으로 게임 방법 보기</button>}<button data-hand className="primary" disabled={!loaded} onClick={prepare}><Play size={17}/>{loadError?'게임을 불러오지 못했어요':!loaded?'게임 불러오는 중…':inputMode==='motion'&&camera.status!=='ready'?'카메라 연결하기':'조작 준비하기'}</button></div></div>}
   {phase==='setup'&&id==='balance'&&showBalanceGuide&&<div className="game-overlay balance-guide" role="dialog" aria-modal="true" aria-label="사람 균형 달리기 방법"><div className="overlay-card"><h2>그림으로 배우는 균형 달리기</h2><div className="balance-guide-steps"><div><span aria-hidden="true">🏃 ↶</span><strong>앞으로 넘어질 때</strong><p>왼쪽으로 기울이거나 A / ← 키를 눌러요.</p></div><div><span aria-hidden="true">🏃 ↷</span><strong>뒤로 넘어질 때</strong><p>오른쪽으로 기울이거나 D / → 키를 눌러요.</p></div><div><span aria-hidden="true">🏃 → 🏠</span><strong>목표는 200m</strong><p>균형을 잡고 집까지 도착해요.</p></div></div><p>몸을 바로 세우거나 키를 놓으면 조작이 멈춰요. 이미 기운 캐릭터는 반대 방향으로 바로잡아 주세요.</p><p>⚡ 3초간 균형을 유지하면 3초간 질주해요. 50m 구간을 통과하면 5초간 균형이 안정돼요.</p><p>👟 신발은 5초간 속도를 높이고, 🥤 음료는 5초간 균형을 안정시켜요.</p><button data-hand className="primary" onClick={()=>setShowBalanceGuide(false)}>확인했어요</button></div></div>}
   {phase==='calibration'&&<div className="game-overlay"><div className="overlay-card"><PersonStanding size={38}/><h2>기준 자세를 맞춰요</h2><p>{settings.dinoMode==='seated'&&id==='dino'?'앉은 자세로 어깨와 골반이 보이게 해주세요.':id==='tetris'?'양팔과 몸이 보이도록 편하게 서주세요.':'어깨와 골반이 보이도록 편하게 서주세요.'}</p><progress max="1" value={progress}/><span>{Math.round(progress*100)}% · {feedback}</span><button data-hand className="small-button" onClick={()=>{chooseInput('keyboard');if(calibrationNext.current==='countdown')changePhase('countdown');else startPractice();}}>{calibrationNext.current==='countdown'?'키보드로 이어하기':'키보드 연습으로 전환'}</button></div></div>}
   {phase==='countdown'&&<div className="countdown"><strong>{inputMode==='motion'&&(camera.status!=='ready'||!camera.hasResult)?'준비 중':count}</strong><span>편하게 준비해주세요</span></div>}
   {phase==='paused'&&<div className="game-overlay"><div className="overlay-card"><Pause size={32}/><h2>잠깐 쉬어가요</h2><p>{reason}</p><button data-hand className="primary" onClick={()=>startCountdown(game.state==='paused')}><Play size={16}/>카운트다운 후 재개</button><button data-hand className="small-button" onClick={()=>startCountdown(false)}><RotateCcw size={16}/>처음부터 다시</button><button data-hand className="text-button" aria-label="이번 게임 종료" onClick={()=>game.finish()}><Flag size={16}/>이번 게임 종료</button>{camera.status==='ready'&&<button data-hand className="small-button" onClick={prepareMotion}><ScanLine size={16}/>{inputMode==='motion'?'모션 조작 다시 준비':'모션으로 전환'}</button>}{inputMode==='motion'&&<button data-hand className="text-button" onClick={()=>{chooseInput('keyboard');startCountdown(game.state==='paused','keyboard');}}>키보드로 이어하기</button>}</div></div>}
-  {phase==='over'&&<div className="game-overlay"><div className="overlay-card"><span className="tag purple">NICE PLAY!</span><h2>{id==='balance'&&score>=2000?'200m 도착 성공!':'멋진 플레이였어요'}</h2><strong className="result-score">{id==='balance'?(score/10).toFixed(1)+'m':score+'점'}</strong>{id==='dino'&&<p>모은 코인 {game.api?.snapshot().coins??0}개</p>}{id==='tetris'&&canSaveScore&&<div className="tetris-score-save"><label htmlFor="tetris-player-name">순위판에 이름을 남겨요</label><div><input id="tetris-player-name" maxLength={8} value={playerName} onChange={e=>setPlayerName(e.target.value)} placeholder="이름 (최대 8자)" disabled={scoreSaved}/><button data-hand className="small-button" onClick={saveTetrisScore} disabled={scoreSaved||!game.api?.saveTetrisScore}>{scoreSaved?'저장됨':'기록 저장'}</button></div></div>}<div className="button-row"><button data-hand className="primary" onClick={()=>startCountdown(false)}><RotateCcw size={16}/>다시 하기</button><button data-hand className="small-button" onClick={back}>로비로</button></div></div></div>}
+  {phase==='over'&&<div className="game-overlay"><div className="overlay-card"><span className="tag purple">NICE PLAY!</span><h2>{id==='balance'&&score>=2000?'200m 도착 성공!':'멋진 플레이였어요'}</h2><strong className="result-score">{id==='balance'?(score/10).toFixed(1)+'m':score+'점'}</strong>{(id==='dino'||id==='cat')&&<p>모은 코인 {game.api?.snapshot().coins??0}개</p>}{id==='tetris'&&canSaveScore&&<div className="tetris-score-save"><label htmlFor="tetris-player-name">순위판에 이름을 남겨요</label><div><input id="tetris-player-name" maxLength={8} value={playerName} onChange={e=>setPlayerName(e.target.value)} placeholder="이름 (최대 8자)" disabled={scoreSaved}/><button data-hand className="small-button" onClick={saveTetrisScore} disabled={scoreSaved||!game.api?.saveTetrisScore}>{scoreSaved?'저장됨':'기록 저장'}</button></div></div>}<div className="button-row"><button data-hand className="primary" onClick={()=>startCountdown(false)}><RotateCcw size={16}/>다시 하기</button><button data-hand className="small-button" onClick={back}>로비로</button></div></div></div>}
   {id==='tetris'&&leaderboardOpen&&<div className="game-overlay tetris-leaderboard" role="dialog" aria-modal="true" aria-labelledby="tetris-leaderboard-title"><div className="tetris-leaderboard-card"><div className="tetris-leaderboard-heading"><h2 id="tetris-leaderboard-title">난이도별 순위판</h2><button data-hand className="small-button" onClick={()=>setLeaderboardOpen(false)} aria-label="순위판 닫기">닫기</button></div><div className="segmented" aria-label="순위판 난이도">{[['VERY_EASY','매우 쉬움'],['EASY','쉬움'],['HARD','어려움']].map(([mode,label])=><button data-hand key={mode} className={leaderboardMode===mode?'active':''} aria-pressed={leaderboardMode===mode} onClick={()=>openLeaderboard(mode)}>{label}</button>)}</div>{leaderboard.length===0?<p className="tetris-leaderboard-empty">등록된 기록이 없습니다.</p>:<ol className="tetris-leaderboard-list">{leaderboard.map((entry,index)=><li key={index}><span className="tetris-rank">{index+1}</span><strong>{entry.name}</strong><span>{entry.score.toLocaleString()}점</span><time>{entry.date}</time></li>)}</ol>}<p className="tetris-leaderboard-note">기록은 이 기기에 저장됩니다.</p></div></div>}
   </div>
   {phase==='practice'&&<div className="practice-strip"><div><strong>먼저 가볍게 연습해요</strong><div className="practice-checks">{required.map(([key,label])=><span key={key} className={achievements.includes(key)?'complete':''}><Check size={14}/>{label}</span>)}</div></div><button data-hand className="primary" onClick={()=>startCountdown(false)}>{required.every(([key])=>achievements.includes(key))?'연습 완료 · 게임 시작':'연습 건너뛰고 시작'}<ArrowRight size={15}/></button></div>}

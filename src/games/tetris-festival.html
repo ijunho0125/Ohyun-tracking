@@ -384,6 +384,7 @@
                 this.isPlayingBGM = false;
                 this.sfxEnabled = true;
                 this.noteIndex = 0;
+                this.lastSoftDropAt = -Infinity;
             }
 
             init() {
@@ -400,18 +401,26 @@
                     const gain = this.ctx.createGain();
                     osc.type = type;
                     osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-                    gain.gain.setValueAtTime(volume, this.ctx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                    const now = this.ctx.currentTime;
+                    gain.gain.setValueAtTime(0.001, now);
+                    gain.gain.exponentialRampToValueAtTime(volume, now + 0.005);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
                     osc.connect(gain);
                     gain.connect(this.ctx.destination);
                     osc.start();
                     osc.stop(this.ctx.currentTime + duration);
+                    osc.onended = () => { osc.disconnect(); gain.disconnect(); };
                 } catch (e) {}
             }
 
-            playMove() { this.playTone(300, 0.05, "sine", 0.08); }
-            playRotate() { this.playTone(450, 0.07, "triangle", 0.12); }
-            playDrop() { this.playTone(180, 0.1, "sawtooth", 0.15); }
+            playMove() { this.playTone(520, 0.06, "triangle", 0.14); }
+            playRotate() { this.playTone(740, 0.09, "triangle", 0.14); }
+            playSoftDrop() {
+                if (!this.ctx || this.ctx.currentTime - this.lastSoftDropAt < 0.09) return;
+                this.lastSoftDropAt = this.ctx.currentTime;
+                this.playTone(390, 0.045, "sine", 0.08);
+            }
+            playDrop() { this.playTone(140, 0.16, "triangle", 0.22); }
             playClear() {
                 this.playTone(523.25, 0.08, "square", 0.15);
                 setTimeout(() => this.playTone(659.25, 0.08, "square", 0.15), 60);
@@ -441,7 +450,8 @@
                 this.bgmInterval = setInterval(() => {
                     if (!this.isPlayingBGM) return;
                     const freq = melody[this.noteIndex % melody.length];
-                    this.playTone(freq, 0.18, "square", 0.04);
+                    this.playTone(freq, 0.18, "triangle", 0.045);
+                    if (this.noteIndex % 4 === 0) this.playTone(freq / 2, 0.2, "sine", 0.035);
                     this.noteIndex++;
                 }, 220);
             }
@@ -561,6 +571,7 @@
                 
                 this.currentPiece = null;
                 this.nextPiece = null;
+                this.pieceBag = [];
                 
                 this.dropCounter = 0;
                 this.dropInterval = 800; // ms
@@ -647,7 +658,16 @@
                 if (this.feverActive) {
                     type = 1; // I자 블록 고정
                 } else {
-                    type = Math.floor(Math.random() * 7) + 1;
+                    // Each bag contains every piece once, avoiding long streaks
+                    // without the shape a player needs. Fever does not consume it.
+                    if (this.pieceBag.length === 0) {
+                        this.pieceBag = [1, 2, 3, 4, 5, 6, 7];
+                        for (let i = this.pieceBag.length - 1; i > 0; i--) {
+                            const j = Math.floor(Math.random() * (i + 1));
+                            [this.pieceBag[i], this.pieceBag[j]] = [this.pieceBag[j], this.pieceBag[i]];
+                        }
+                    }
+                    type = this.pieceBag.pop();
                 }
 
                 const matrix = TETROMINOS[type].map(row => [...row]);
@@ -709,12 +729,13 @@
                 }
             }
 
-            goDown() {
+            goDown(manual = false) {
                 if (this.state !== "playing" || !this.currentPiece) return false;
                 
                 if (!this.checkCollision(this.currentPiece.matrix, this.currentPiece.x, this.currentPiece.y + 1)) {
                     this.currentPiece.y++;
                     this.dropCounter = 0;
+                    if (manual) audioEngine.playSoftDrop();
                     return true;
                 } else {
                     this.isGrounded = true;
@@ -1564,7 +1585,7 @@
                     game.goSide(side); lastSideAt = now;
                 }
                 if (crouching && now - lastDownAt >= 65) {
-                    if (game.goDown()) { game.score += 1; updateUI(); }
+                    if (game.goDown(true)) { game.score += 1; updateUI(); }
                     lastDownAt = now;
                 }
                 if (jumpArmed && !crouching && hipRise > 0.055 && ankleRise > 0.045 && now - jumpAt > 600) {
@@ -1650,7 +1671,7 @@
                 case "ArrowUp": game.rotate(); break;
                 case "ArrowDown": 
                     e.preventDefault(); 
-                    if (game.goDown()) {
+                    if (game.goDown(true)) {
                         game.score += 1; // 소프트드롭 보너스 점수
                         updateUI();
                     }
@@ -1672,7 +1693,7 @@
         const startSoftDrop = () => {
             if (!softDropInterval && game.state === "playing") {
                 softDropInterval = setInterval(() => {
-                    if (game.goDown()) {
+                    if (game.goDown(true)) {
                         game.score += 1;
                         updateUI();
                     }
