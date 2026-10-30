@@ -139,6 +139,10 @@
             animation: shake-heavy-anim 0.22s cubic-bezier(.36,.07,.19,.97) both;
         }
 
+        @media (prefers-reduced-motion: reduce) {
+            .shake-light, .shake-heavy { animation: none; }
+        }
+
         @keyframes shake-heavy-anim {
             10%, 90% { transform: translate3d(-4px, 3px, 0) rotate(-0.8deg); }
             20%, 80% { transform: translate3d(5px, -4px, 0) rotate(1deg); }
@@ -374,6 +378,39 @@
         const danceCanvas = document.getElementById("danceCanvas");
         const danceCtx = danceCanvas.getContext("2d");
 
+        // Drawing stays in these logical coordinates; the backing buffers can
+        // grow to match the actual display size and device pixel ratio.
+        const BOARD_W = 220, BOARD_H = 440;
+        const NEXT_W = 70, NEXT_H = 70;
+        const DANCE_W = 120, DANCE_H = 280;
+        function resizeDrawingBuffer(target, context, logicalWidth, logicalHeight) {
+            const bounds = target.getBoundingClientRect();
+            // object-fit: contain may leave unused space within the element.
+            const displayedScale = Math.min(bounds.width / logicalWidth, bounds.height / logicalHeight);
+            const scale = Math.max(1, Math.min(4, (displayedScale || 1) * (window.devicePixelRatio || 1)));
+            const width = Math.round(logicalWidth * scale), height = Math.round(logicalHeight * scale);
+            if (target.width === width && target.height === height) return false;
+            target.width = width;
+            target.height = height;
+            context.setTransform(width / logicalWidth, 0, 0, height / logicalHeight, 0, 0);
+            context.imageSmoothingEnabled = true;
+            context.imageSmoothingQuality = "high";
+            return true;
+        }
+        function resizeDrawingBuffers() {
+            const boardChanged = resizeDrawingBuffer(canvas, ctx, BOARD_W, BOARD_H);
+            const nextChanged = resizeDrawingBuffer(nextCanvas, nextCtx, NEXT_W, NEXT_H);
+            const danceChanged = resizeDrawingBuffer(danceCanvas, danceCtx, DANCE_W, DANCE_H);
+            if (boardChanged) drawBoard();
+            if (nextChanged) drawNextPiece();
+            if (danceChanged) drawMascotCharacter();
+        }
+        if (window.ResizeObserver) {
+            const drawingObserver = new ResizeObserver(resizeDrawingBuffers);
+            [canvas, nextCanvas, danceCanvas].forEach(target => drawingObserver.observe(target));
+        }
+        window.addEventListener("resize", resizeDrawingBuffers);
+
         // Web Audio Synthesizer Engine
         class WebAudioEngine {
             constructor() {
@@ -385,6 +422,7 @@
                 this.sfxEnabled = true;
                 this.noteIndex = 0;
                 this.lastSoftDropAt = -Infinity;
+                this.lastMoveAt = -Infinity;
             }
 
             init() {
@@ -413,22 +451,27 @@
                 } catch (e) {}
             }
 
-            playMove() { this.playTone(520, 0.06, "triangle", 0.14); }
-            playRotate() { this.playTone(740, 0.09, "triangle", 0.14); }
+            playMove() {
+                if (!this.ctx || this.ctx.currentTime - this.lastMoveAt < 0.055) return;
+                this.lastMoveAt = this.ctx.currentTime;
+                this.playTone(520 * (0.98 + Math.random() * 0.04), 0.06, "triangle", 0.14);
+            }
+            playRotate() { this.playTone(740 * (0.98 + Math.random() * 0.04), 0.09, "triangle", 0.14); }
             playSoftDrop() {
                 if (!this.ctx || this.ctx.currentTime - this.lastSoftDropAt < 0.09) return;
                 this.lastSoftDropAt = this.ctx.currentTime;
                 this.playTone(390, 0.045, "sine", 0.08);
             }
             playDrop() { this.playTone(140, 0.16, "triangle", 0.22); }
+            playLock() { this.playTone(195, 0.09, "triangle", 0.11); }
             playClear() {
                 this.playTone(523.25, 0.08, "square", 0.15);
-                setTimeout(() => this.playTone(659.25, 0.08, "square", 0.15), 60);
-                setTimeout(() => this.playTone(783.99, 0.12, "square", 0.18), 120);
+                setTimeout(() => { if (game.state === "playing") this.playTone(659.25, 0.08, "square", 0.15); }, 60);
+                setTimeout(() => { if (game.state === "playing") this.playTone(783.99, 0.12, "square", 0.18); }, 120);
             }
             playFever() {
                 [523, 659, 783, 1046].forEach((f, i) => {
-                    setTimeout(() => this.playTone(f, 0.1, "triangle", 0.2), i * 70);
+                    setTimeout(() => { if (game.state === "playing") this.playTone(f, 0.1, "triangle", 0.2); }, i * 70);
                 });
             }
 
@@ -581,6 +624,7 @@
                 this.lockDelay = 1000;
                 this.lockTimer = 0;
                 this.isGrounded = false;
+                this.actionPulse = 0;
 
                 // Injah Tiger Combo & Fever System
                 this.injahMood = 0; // 채워진 호랑이 개수 (0 ~ gaugeMax)
@@ -713,6 +757,7 @@
                     if (!this.checkCollision(rotated, this.currentPiece.x + k, this.currentPiece.y)) {
                         this.currentPiece.matrix = rotated;
                         this.currentPiece.x += k;
+                        this.actionPulse = FEEDBACK.actionPulseFrames;
                         audioEngine.playRotate();
                         if (this.isGrounded) this.lockTimer = 0; // 회전 성공시 착지 유예시간 리셋
                         return;
@@ -724,6 +769,7 @@
                 if (this.state !== "playing" || !this.currentPiece) return;
                 if (!this.checkCollision(this.currentPiece.matrix, this.currentPiece.x + dir, this.currentPiece.y)) {
                     this.currentPiece.x += dir;
+                    this.actionPulse = FEEDBACK.actionPulseFrames;
                     audioEngine.playMove();
                     if (this.isGrounded) this.lockTimer = 0; // 이동 성공시 착지 유예시간 리셋
                 }
@@ -751,11 +797,14 @@
                 }
                 audioEngine.playDrop();
                 triggerScreenShake("heavy"); // 하드드롭 시 강력한 흔들림 이펙트 추가
-                this.lockPiece();
+                this.lockPiece(true);
             }
 
-            lockPiece() {
+            lockPiece(hard = false) {
                 const matrix = this.currentPiece.matrix;
+                createLockParticles(this.currentPiece, hard);
+                if (!hard) audioEngine.playLock();
+                this.actionPulse = 0;
                 for (let r = 0; r < matrix.length; r++) {
                     for (let c = 0; c < matrix[r].length; c++) {
                         if (matrix[r][c] !== 0) {
@@ -966,12 +1015,29 @@
         const game = new TetrisGame();
 
         // 파티클 효과 시스템
+        const FEEDBACK = Object.freeze({ actionPulseFrames: 6, lockParticlesPerCell: 2, particleLimit: 400 });
         let particles = [];
+        function createLockParticles(piece, hard) {
+            const palette = BLOCK_PALETTE[piece.type] || { main: "#ffffff" };
+            piece.matrix.forEach((row, r) => row.forEach((cell, c) => {
+                if (!cell || (piece.matrix[r + 1] && piece.matrix[r + 1][c])) return;
+                for (let i = 0; i < FEEDBACK.lockParticlesPerCell && particles.length < FEEDBACK.particleLimit; i++) {
+                    particles.push({
+                        x: (piece.x + c + 0.5) * game.tileSize,
+                        y: (piece.y + r + 1) * game.tileSize - 2,
+                        vx: (Math.random() - 0.5) * (hard ? 3 : 1.5),
+                        vy: -Math.random() * (hard ? 2.5 : 1.2),
+                        size: hard ? 2.5 : 1.8, color: palette.main,
+                        alpha: hard ? 0.85 : 0.6, life: 0.07
+                    });
+                }
+            }));
+        }
         function createLineParticles(cellX, cellY, color) {
             const px = cellX * game.tileSize + game.tileSize / 2;
             const py = cellY * game.tileSize + game.tileSize / 2;
 
-            for (let i = 0; i < 14; i++) { // 파티클 밀도 및 역동성 강화
+            for (let i = 0; i < 14 && particles.length < FEEDBACK.particleLimit; i++) {
                 particles.push({
                     x: px,
                     y: py,
@@ -986,6 +1052,7 @@
         }
 
         function updateParticles() {
+            if (game.state === "playing" && game.actionPulse > 0) game.actionPulse--;
             for (let i = particles.length - 1; i >= 0; i--) {
                 const p = particles[i];
                 p.x += p.vx;
@@ -1009,12 +1076,15 @@
             });
         }
 
+        let shakeTimer = null;
         function triggerScreenShake(intensity = "light") {
             const container = document.getElementById("board-container");
             container.classList.remove("shake-light", "shake-heavy");
+            if (shakeTimer !== null) clearTimeout(shakeTimer);
+            if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
             void container.offsetWidth; // Reflow
             container.classList.add(intensity === "heavy" ? "shake-heavy" : "shake-light");
-            setTimeout(() => container.classList.remove("shake-light", "shake-heavy"), 300);
+            shakeTimer = setTimeout(() => { container.classList.remove("shake-light", "shake-heavy"); shakeTimer = null; }, 300);
         }
 
         // ===== 줄 삭제 연출 =====
@@ -1149,22 +1219,22 @@
             // 금빛 맥동
             ctx.globalAlpha = 0.08 + 0.06 * Math.sin(t * 8);
             ctx.fillStyle = "#facc15";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillRect(0, 0, BOARD_W, BOARD_H);
             // 위에서 아래로 훑는 빛줄기
-            const sweepY = ((t * 0.9) % 1.3 - 0.15) * canvas.height;
+            const sweepY = ((t * 0.9) % 1.3 - 0.15) * BOARD_H;
             const g = ctx.createLinearGradient(0, sweepY - 30, 0, sweepY + 30);
             g.addColorStop(0, "rgba(255,255,255,0)");
             g.addColorStop(0.5, "rgba(255,255,255,0.35)");
             g.addColorStop(1, "rgba(255,255,255,0)");
             ctx.globalAlpha = 1;
             ctx.fillStyle = g;
-            ctx.fillRect(0, sweepY - 30, canvas.width, 60);
+            ctx.fillRect(0, sweepY - 30, BOARD_W, 60);
             // 반짝이는 별
             ctx.fillStyle = "#fff7ae";
             ctx.textAlign = "center";
             for (let k = 0; k < 14; k++) {
-                const px = (k * 73.7 + t * 20 * (k % 3 + 1)) % canvas.width;
-                const py = (k * 131.3 + t * 35) % canvas.height;
+                const px = (k * 73.7 + t * 20 * (k % 3 + 1)) % BOARD_W;
+                const py = (k * 131.3 + t * 35) % BOARD_H;
                 const s = 0.5 + 0.5 * Math.sin(t * 6 + k * 1.7);
                 if (s < 0.2) continue;
                 ctx.globalAlpha = s;
@@ -1175,12 +1245,12 @@
             ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t * 10);
             ctx.strokeStyle = "#facc15";
             ctx.lineWidth = 4;
-            ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
+            ctx.strokeRect(2, 2, BOARD_W - 4, BOARD_H - 4);
             ctx.restore();
         }
 
         function drawBoard() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.clearRect(0, 0, BOARD_W, BOARD_H);
 
             // 격자 배경
             ctx.strokeStyle = "rgba(239, 68, 68, 0.08)";
@@ -1188,13 +1258,13 @@
             for (let r = 0; r <= game.height; r++) {
                 ctx.beginPath();
                 ctx.moveTo(0, r * game.tileSize);
-                ctx.lineTo(canvas.width, r * game.tileSize);
+                ctx.lineTo(BOARD_W, r * game.tileSize);
                 ctx.stroke();
             }
             for (let c = 0; c <= game.width; c++) {
                 ctx.beginPath();
                 ctx.moveTo(c * game.tileSize, 0);
-                ctx.lineTo(c * game.tileSize, canvas.height);
+                ctx.lineTo(c * game.tileSize, BOARD_H);
                 ctx.stroke();
             }
 
@@ -1215,6 +1285,14 @@
                     for (let c = 0; c < matrix[r].length; c++) {
                         if (matrix[r][c] !== 0) {
                             drawBlock(ctx, game.currentPiece.x + c, game.currentPiece.y + r, matrix[r][c], game.tileSize);
+                            if (game.actionPulse > 0) {
+                                ctx.save();
+                                ctx.globalAlpha = 0.45 * game.actionPulse / FEEDBACK.actionPulseFrames;
+                                ctx.strokeStyle = "#fff8d5";
+                                ctx.lineWidth = 2;
+                                ctx.strokeRect((game.currentPiece.x + c) * game.tileSize + 2, (game.currentPiece.y + r) * game.tileSize + 2, game.tileSize - 4, game.tileSize - 4);
+                                ctx.restore();
+                            }
                         }
                     }
                 }
@@ -1225,13 +1303,13 @@
         }
 
         function drawNextPiece() {
-            nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+            nextCtx.clearRect(0, 0, NEXT_W, NEXT_H);
             if (!game.nextPiece) return;
 
             const matrix = game.nextPiece.matrix;
             const size = 15;
-            const offsetX = Math.floor((nextCanvas.width - matrix[0].length * size) / 2);
-            const offsetY = Math.floor((nextCanvas.height - matrix.length * size) / 2);
+            const offsetX = Math.floor((NEXT_W - matrix[0].length * size) / 2);
+            const offsetY = Math.floor((NEXT_H - matrix.length * size) / 2);
 
             for (let r = 0; r < matrix.length; r++) {
                 for (let c = 0; c < matrix[r].length; c++) {
@@ -1248,7 +1326,7 @@
 
         let danceFrame = 0;
         function drawMascotCharacter() {
-            danceCtx.clearRect(0, 0, danceCanvas.width, danceCanvas.height);
+            danceCtx.clearRect(0, 0, DANCE_W, DANCE_H);
             
             // 콤보 단계(0 ~ 5)에 따른 춤의 역동성 및 흥겨움 차등 적용
             const comboLevel = Math.min(5, Math.floor(game.injahMood / (game.gaugeMax || 5) * 5)); // 0 ~ 5
@@ -1260,8 +1338,8 @@
             danceBoost = Math.max(0, danceBoost - 0.012);
             const armsUp = comboLevel >= 3 || game.feverActive; // 게이지 3단계부터 만세 춤
 
-            const cx = danceCanvas.width / 2;
-            const cy = danceCanvas.height / 2 + 10;
+            const cx = DANCE_W / 2;
+            const cy = DANCE_H / 2 + 10;
             const bounce = Math.sin(danceFrame * (2.5 + comboLevel * 0.25)) * bounceHeight; 
             const armAngle = Math.sin(danceFrame * (2.5 + comboLevel * 0.25)) * armSwing; 
             const headTilt = Math.sin(danceFrame * 1.5) * (0.04 + comboLevel * 0.01); 
@@ -1393,7 +1471,7 @@
             danceCtx.textAlign = "center";
             danceCtx.font = "bold 11px Orbitron, sans-serif";
             danceCtx.fillStyle = game.feverActive ? "#facc15" : (comboLevel >= 4 ? "#fbbf24" : "#a8a29e");
-            danceCtx.fillText(game.feverActive ? "FEVER!!" : stageNames[Math.min(comboLevel, 5)], cx, danceCanvas.height - 6);
+            danceCtx.fillText(game.feverActive ? "FEVER!!" : stageNames[Math.min(comboLevel, 5)], cx, DANCE_H - 6);
             danceCtx.restore();
         }
 

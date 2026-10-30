@@ -81,6 +81,21 @@ try {
   assert(mechanics.landing.grounded, 'high-speed descent crossing a roof lands');
   assert.equal(mechanics.landing.cat.y, 198);
   assert.equal(mechanics.landing.cat.vy, 0);
+  const landingFeedback = await page.locator('iframe.source-game').evaluate(frame => frame.contentWindow.eval(`(() => {
+    cameraX=0; rooftops=[{x:0,width:500,y:240}]; particles=[];
+    cat.reset(); cat.x=150; cat.y=190; cat.vy=10;
+    const original=sound.playLanding; let calls=0;
+    sound.playLanding=()=>calls++;
+    try {
+      cat.update();
+      const first={calls,frames:cat.landingFrames,particles:particles.length};
+      cat.update();
+      return {first,second:{calls,particles:particles.length}};
+    } finally { sound.playLanding=original; }
+  })()`));
+  assert.deepEqual(landingFeedback.first, {calls:1, frames:7, particles:5}, 'a confirmed landing produces one feedback event');
+  assert.equal(landingFeedback.second.calls, 1, 'standing on the roof does not repeat landing audio');
+  assert.equal(landingFeedback.second.particles, 5, 'standing on the roof does not repeat landing particles');
   const acceleration = await page.locator('iframe.source-game').evaluate(frame => {
     const w = frame.contentWindow, api = w.motionGame;
     w.eval('cameraX=0; rooftops=[{x:0,width:10000,y:300}]; wirePoles=[]; coins=[]; cat.reset(); cat.y=258; cat.isGrounded=true; gameSpeed=4.3; frameCount=238');

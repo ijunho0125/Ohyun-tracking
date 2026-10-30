@@ -40,8 +40,15 @@ function Preview({camera,frame,tracking,fresh}:{camera:CameraManager;frame:Motio
   </div>;
 }
 export function CameraPanel({camera,frame,connect,large=false,compact=false,collapseInPortrait=false}:{camera:CameraManager;frame:MotionFrame|null;connect:()=>void;large?:boolean;compact?:boolean;collapseInPortrait?:boolean}) {
-  const [collapsed,setCollapsed]=useState(()=>compact&&collapseInPortrait&&window.matchMedia('(max-width: 800px) and (orientation: portrait)').matches),bodyId=useId();
+  const [collapsed,setCollapsed]=useState(()=>compact&&collapseInPortrait&&window.matchMedia('(orientation: portrait)').matches),bodyId=useId();
   const [tracking,setTracking]=useState(true),[expanded,setExpanded]=useState(false),[now,setNow]=useState(()=>performance.now());
+  useEffect(()=>{
+    if(!compact||!collapseInPortrait)return;
+    const portrait=window.matchMedia('(orientation: portrait)');
+    const onChange=(event:MediaQueryListEvent)=>{if(event.matches)setCollapsed(true);};
+    portrait.addEventListener('change',onChange);
+    return()=>portrait.removeEventListener('change',onChange);
+  },[compact,collapseInPortrait]);
   useEffect(()=>{
     if(!frame||camera.status!=='ready')return;
     const timer=window.setTimeout(()=>setNow(performance.now()),Math.max(0,FRAME_MAX_AGE-(performance.now()-frame.time)));

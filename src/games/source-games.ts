@@ -353,10 +353,10 @@ export function sourceDocument(id: SourceId): string {
     #fever-alert,#obstacle-alert{padding:4px 8px;background:#450a0a;border:1px solid #eab308;border-radius:7px;color:#fde68a;font-size:11px;font-weight:700} #fever-alert>div,#obstacle-alert{display:flex;justify-content:space-between;gap:8px} .hidden{display:none!important}
     #festival-play{display:flex;justify-content:center;align-items:stretch;gap:8px;flex:1;min-height:0;overflow:hidden}
     #board-container{height:100%;min-width:0;display:flex;justify-content:center;border:2px solid rgba(239,68,68,.7);border-radius:12px;overflow:hidden;background:#0c0a09;box-shadow:0 0 25px rgba(239,68,68,.35)}
-    #tetrisCanvas{display:block;height:100%;width:auto;max-width:100%;object-fit:contain;aspect-ratio:1/2;image-rendering:pixelated}
+    #tetrisCanvas{display:block;height:100%;width:auto;max-width:100%;object-fit:contain;aspect-ratio:1/2}
     #festival-next,#source-info{width:100px;flex:0 1 100px;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px;padding:7px;background:rgba(12,10,9,.9);border:1px solid rgba(234,179,8,.5);border-radius:12px;color:#facc15}
-    #festival-next{align-self:flex-start} #festival-next strong,#source-info strong{font-size:10px;letter-spacing:.08em;text-align:center} #nextCanvas{width:min(70px,100%);height:auto;aspect-ratio:1;background:#1c1917;border-radius:8px;image-rendering:pixelated}
-    #danceCanvas{width:100%;height:100%;min-height:0;object-fit:contain;image-rendering:pixelated} #festival-mode{width:100%;padding:4px;text-align:center;background:#1c1917;border-radius:6px;font-size:10px} #festival-mode span{display:block;color:#a8a29e;font-size:8px} #ui-mode-badge{color:#facc15;font-weight:900}
+    #festival-next{align-self:flex-start} #festival-next strong,#source-info strong{font-size:10px;letter-spacing:.08em;text-align:center} #nextCanvas{width:min(70px,100%);height:auto;aspect-ratio:1;background:#1c1917;border-radius:8px}
+    #danceCanvas{width:100%;height:100%;min-height:0;object-fit:contain} #festival-mode{width:100%;padding:4px;text-align:center;background:#1c1917;border-radius:6px;font-size:10px} #festival-mode span{display:block;color:#a8a29e;font-size:8px} #ui-mode-badge{color:#facc15;font-weight:900}
     @media(max-height:700px){#arcade-surface{gap:24px;padding:76px 20px 66px}.practice #arcade-surface{padding-bottom:180px}#festival-panel{gap:3px;padding:5px 8px 7px}#festival-panel h1{font-size:15px}#festival-stats>div{padding:2px}#festival-gauge{padding:1px 7px}#tiger-gauge-dots canvas{width:16px;height:16px}}
     @media(max-height:450px){#arcade-surface{padding-top:66px}.practice #arcade-surface{padding-bottom:180px}#festival-panel h1{display:none}#festival-next,#source-info{width:70px;flex-basis:70px;padding:4px}}
     ${id === 'tetris' ? `
@@ -387,16 +387,16 @@ export function sourceDocument(id: SourceId): string {
     @media(max-height:500px){#danceCanvas{height:120px}#source-info strong{font-size:8px}}
     /* In portrait, stack the supporting panels beside the board instead of
        asking three full-height columns to fit across a narrow screen. */
-    @media (orientation:portrait) and (max-width:800px){
+    @media (orientation:portrait){
       #arcade-surface{padding:56px 8px 54px}
       .practice #arcade-surface{padding-bottom:168px}
       #festival-play{position:relative;display:block}
-      #board-container{position:absolute;left:calc((100% - 92px) / 2);top:50%;height:min(100%, calc((100vw - 108px) * 2));width:auto;transform:translate(-50%,-50%)}
-      #festival-next,#source-info{position:absolute;right:0;width:84px;padding:4px;gap:3px}
+      #board-container{position:absolute;left:calc((100% - clamp(84px, 14vw, 160px) - 8px) / 2);top:50%;height:min(100%, calc((min(100vw - 16px, 900px) - clamp(84px, 14vw, 160px) - 8px) * 2));width:auto;transform:translate(-50%,-50%)}
+      #festival-next,#source-info{position:absolute;right:0;width:clamp(84px, 14vw, 160px);padding:4px;gap:3px}
       #festival-next{top:0}
-      #nextCanvas{width:58px}
-      #source-info{top:160px}
-      #danceCanvas{height:clamp(48px,12vh,90px)}
+      #nextCanvas{width:clamp(58px, 9vw, 130px)}
+      #source-info{top:clamp(160px, 22vw, 250px)}
+      #danceCanvas{height:clamp(48px,12vh,150px)}
       #festival-gauge{padding:3px 1px}
       #tiger-gauge-dots canvas{width:10px;height:10px}
     }

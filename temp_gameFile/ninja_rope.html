@@ -178,12 +178,16 @@
 
     <script>
         // Web Audio API Sound Synthesizer
+        // Cosmetic feedback only; physics and scoring remain independent.
+        const CAT_FEEDBACK = Object.freeze({ landingFrames: 7, landingMinSpeed: 3, landingVolume: 0.12, landingDuration: 0.1, coinSoundInterval: 0.08, coinPitchVariation: 0.05 });
+
         class SoundEngine {
             constructor() {
                 this.ctx = null;
                 this.muted = false;
                 this.bgmInterval = null;
                 this.bgmStep = 0;
+                this.lastCoinSound = -Infinity;
             }
 
             init() {
@@ -249,12 +253,16 @@
 
             playCoin(isGold = false) {
                 if (this.muted || !this.ctx) return;
+                // Dense coin clusters should not stack a full oscillator for every coin.
+                if (this.ctx.currentTime - this.lastCoinSound < CAT_FEEDBACK.coinSoundInterval) return;
+                this.lastCoinSound = this.ctx.currentTime;
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 osc.type = 'sine';
                 
-                const freq1 = isGold ? 987.77 : 659.25;
-                const freq2 = isGold ? 1318.51 : 880;
+                const variation = 1 + (Math.random() - 0.5) * CAT_FEEDBACK.coinPitchVariation;
+                const freq1 = (isGold ? 987.77 : 659.25) * variation;
+                const freq2 = (isGold ? 1318.51 : 880) * variation;
 
                 osc.frequency.setValueAtTime(freq1, this.ctx.currentTime);
                 osc.frequency.setValueAtTime(freq2, this.ctx.currentTime + 0.08);
@@ -266,6 +274,22 @@
                 gain.connect(this.ctx.destination);
                 osc.start();
                 osc.stop(this.ctx.currentTime + 0.25);
+            }
+
+            playLanding(impact) {
+                if (this.muted || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(140 + impact * 5, now);
+                osc.frequency.exponentialRampToValueAtTime(65, now + CAT_FEEDBACK.landingDuration);
+                gain.gain.setValueAtTime(Math.min(CAT_FEEDBACK.landingVolume, 0.04 + impact * 0.008), now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + CAT_FEEDBACK.landingDuration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + CAT_FEEDBACK.landingDuration);
             }
 
             playFall() {
@@ -396,8 +420,26 @@
         const MIN_WIRE_LENGTH = 130;
         // The pole glow extends 16 pixels to either side of its center.
         const MIN_POLE_SPACING = GAME_WIDTH + 40;
-        canvas.width = GAME_WIDTH;
-        canvas.height = GAME_HEIGHT;
+        function resizeCanvasResolution() {
+            const bounds = canvas.getBoundingClientRect();
+            // The hosted canvas uses object-fit: contain, so only the fitted
+            // 16:9 area needs pixels. Keep physics in the original coordinates.
+            const displayedScale = bounds.width && bounds.height
+                ? Math.min(bounds.width / GAME_WIDTH, bounds.height / GAME_HEIGHT)
+                : 1;
+            const scale = Math.max(1, Math.min(4, displayedScale * (window.devicePixelRatio || 1)));
+            const width = Math.round(GAME_WIDTH * scale);
+            const height = Math.round(GAME_HEIGHT * scale);
+            if (canvas.width === width && canvas.height === height) return;
+            canvas.width = width;
+            canvas.height = height;
+            ctx.setTransform(width / GAME_WIDTH, 0, 0, height / GAME_HEIGHT, 0, 0);
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+        }
+        resizeCanvasResolution();
+        if (window.ResizeObserver) new ResizeObserver(resizeCanvasResolution).observe(canvas);
+        window.addEventListener('resize', resizeCanvasResolution);
 
         // UI References
         const scoreText = document.getElementById('scoreText');
@@ -485,6 +527,7 @@
                 // Animation
                 this.scarfAnim = 0;
                 this.rotation = 0;
+                this.landingFrames = 0;
             }
 
             reset() {
@@ -498,6 +541,7 @@
                 this.wireTarget = null;
                 this.lastWireTarget = null;
                 this.rotation = 0;
+                this.landingFrames = 0;
             }
 
             // Enhanced Jump
@@ -560,6 +604,7 @@
 
             update() {
                 this.scarfAnim += 0.2;
+                if (this.landingFrames > 0) this.landingFrames--;
 
                 // [핵심] 공중에 떠 있고, 와이어가 안 걸려있고, 오른팔을 뻗고 있으면 지속적으로 와이어 캐치 시도
                 if (!this.isGrounded && !this.isWireAttached && window.isRightArmExtended) {
@@ -612,6 +657,7 @@
 
             checkRoofCollisions() {
                 let catWorldX = this.x + cameraX;
+                const wasGrounded = this.isGrounded;
                 this.isGrounded = false;
 
                 for (let roof of rooftops) {
@@ -619,10 +665,17 @@
                         let roofY = roof.y;
                         // [수정] 낙하 속도가 빠를 때 지붕을 그대로 관통하는 버그를 막기 위해 충돌 두께를 24에서 40으로 확장
                         if (this.y + this.height >= roofY && this.y + this.height <= roofY + 40 && this.vy >= 0) {
+                            const impact = this.vy;
                             this.y = roofY - this.height;
                             this.vy = 0;
                             this.isGrounded = true;
                             this.jumpCount = 0;
+
+                            if (!wasGrounded && impact >= CAT_FEEDBACK.landingMinSpeed) {
+                                this.landingFrames = CAT_FEEDBACK.landingFrames;
+                                sound.playLanding(impact);
+                                createParticles(catWorldX + this.width / 2, roofY, '#cbd5e1', 5);
+                            }
 
                             if (this.isWireAttached) {
                                 this.detachWire();
@@ -657,6 +710,10 @@
 
                 ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
                 ctx.rotate(this.rotation);
+                if (this.landingFrames > 0 && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                    const squash = this.landingFrames / CAT_FEEDBACK.landingFrames;
+                    ctx.scale(1 + 0.1 * squash, 1 - 0.1 * squash);
+                }
 
                 // Scarf
                 let scarfWave = Math.sin(this.scarfAnim) * 6;

@@ -1305,13 +1305,29 @@
         const ctx = canvas.getContext('2d');
         const container = document.getElementById('game-card');
 
-        let width = canvas.width = container.clientWidth;
-        let height = canvas.height = container.clientHeight;
-
-        window.addEventListener('resize', () => {
-            width = canvas.width = container.clientWidth;
-            height = canvas.height = container.clientHeight;
-        });
+        // Game coordinates stay in CSS pixels; the backing buffer follows the
+        // screen's pixel density so the scene remains sharp on high-DPI displays.
+        let width = 1;
+        let height = 1;
+        function resizeCanvas() {
+            const nextWidth = Math.max(1, container.clientWidth);
+            const nextHeight = Math.max(1, container.clientHeight);
+            const pixelRatio = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+            const bufferWidth = Math.round(nextWidth * pixelRatio);
+            const bufferHeight = Math.round(nextHeight * pixelRatio);
+            if (width === nextWidth && height === nextHeight &&
+                canvas.width === bufferWidth && canvas.height === bufferHeight) return;
+            width = nextWidth;
+            height = nextHeight;
+            canvas.width = bufferWidth;
+            canvas.height = bufferHeight;
+            ctx.setTransform(bufferWidth / width, 0, 0, bufferHeight / height, 0, 0);
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+        }
+        resizeCanvas();
+        if (window.ResizeObserver) new ResizeObserver(resizeCanvas).observe(container);
+        window.addEventListener('resize', resizeCanvas);
 
         // Web Audio Synthesizer Setup
         let isMuted = localStorage.getItem('runner_is_muted') === 'true';
@@ -1375,11 +1391,14 @@
                     gain.connect(audioCtx.destination);
                     osc.start(now);
                     osc.stop(now + 0.08);
-                } else if (type === 'pickup') {
+                } else if (type === 'pickup' || type === 'pickup-speed' || type === 'pickup-stability') {
                     osc.type = 'sine';
-                    osc.frequency.setValueAtTime(520, now);
-                    osc.frequency.setValueAtTime(720, now + 0.08);
-                    osc.frequency.setValueAtTime(980, now + 0.16);
+                    // A different contour identifies the collected item without
+                    // changing the existing reward sound used for milestones.
+                    const base = type === 'pickup-speed' ? 600 : type === 'pickup-stability' ? 420 : 520;
+                    osc.frequency.setValueAtTime(base, now);
+                    osc.frequency.setValueAtTime(base * 1.38, now + 0.08);
+                    osc.frequency.setValueAtTime(base * 1.88, now + 0.16);
                     gain.gain.setValueAtTime(0.11, now);
                     gain.gain.linearRampToValueAtTime(0.01, now + 0.24);
                     osc.connect(gain);
@@ -2161,7 +2180,7 @@
                 if (gameState === 'PLAYING' && Math.abs(this.x - runner.x) < 27) {
                     this.collected = true;
                     runner.activatePowerup(this.type);
-                    playSound('pickup');
+                    playSound(this.type === 'speed' ? 'pickup-speed' : 'pickup-stability');
                     createDustParticles(this.x, runner.groundY - 30, 12);
                     return false;
                 }
@@ -2387,6 +2406,34 @@
                 ctx.fill();
                 ctx.restore();
             }
+        }
+
+        // Show the accepted lean immediately, even before the runner's inertia
+        // makes the body visibly move. This is a visual cue only, not physics.
+        function drawLeanFeedback(ctx, cameraX) {
+            if (gameState !== 'PLAYING' || runner.isFallen) return;
+            const input = typeof hostTilt !== 'undefined'
+                ? hostTilt
+                : (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+            const strength = Math.min(1, Math.abs(input));
+            if (strength < 0.08) return;
+            const direction = Math.sign(input);
+            const x = runner.x - cameraX + direction * 27;
+            const y = runner.groundY - 10;
+            ctx.save();
+            ctx.strokeStyle = '#ffffff';
+            ctx.globalAlpha = 0.35 + strength * 0.45;
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + direction * (10 + strength * 12), y);
+            ctx.lineTo(x + direction * (5 + strength * 12), y - 5);
+            ctx.moveTo(x + direction * (10 + strength * 12), y);
+            ctx.lineTo(x + direction * (5 + strength * 12), y + 5);
+            ctx.stroke();
+            ctx.restore();
         }
 
         const runner = new Runner();
@@ -3892,6 +3939,7 @@
             particles.forEach(p => p.draw(ctx, cameraX));
             runner.draw(ctx, cameraX);
             drawPowerupEffects(ctx, cameraX, now);
+            drawLeanFeedback(ctx, cameraX);
 
             // Vehicles are intentionally rendered after the runner.
             // Therefore a car/bus visually passes in front when they overlap.

@@ -320,12 +320,26 @@
   const LOGICAL_W = 900;
   const LOGICAL_H = 300;
   const GROUND_Y = 235;
-  const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
-  canvas.width = LOGICAL_W * dpr;
-  canvas.height = LOGICAL_H * dpr;
   canvas.style.width = LOGICAL_W + 'px';
   canvas.style.height = LOGICAL_H + 'px';
-  ctx.scale(dpr, dpr);
+  function resizeCanvasResolution() {
+    const bounds = canvas.getBoundingClientRect();
+    // Render at the displayed device-pixel size, while retaining the game's
+    // logical coordinates. Cap the buffer to keep large displays affordable.
+    const scale = Math.max(1, Math.min(4,
+      (bounds.width || LOGICAL_W) / LOGICAL_W * (window.devicePixelRatio || 1)));
+    const width = Math.round(LOGICAL_W * scale);
+    const height = Math.round(LOGICAL_H * scale);
+    if (canvas.width === width && canvas.height === height) return;
+    canvas.width = width;
+    canvas.height = height;
+    ctx.setTransform(width / LOGICAL_W, 0, 0, height / LOGICAL_H, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+  }
+  resizeCanvasResolution();
+  if (window.ResizeObserver) new ResizeObserver(resizeCanvasResolution).observe(canvas);
+  window.addEventListener('resize', resizeCanvasResolution);
 
   const overlay = document.getElementById('overlay');
   const overlayTitle = document.getElementById('overlayTitle');
@@ -580,6 +594,68 @@
     else drawImageBackground(ctx, LOGICAL_W, LOGICAL_H, bg);
   }
 
+  // Canvas gradients provide a lightweight lighting pass that keeps the
+  // selected landscape visible without requiring WebGL.
+  let daylightElapsed = 0;
+  const DAY_CYCLE_MS = 90000;
+  function nightAmount() {
+    const startPhase = currentBackgroundId === 'bright-night' ? 0.5 : 0;
+    return (1 - Math.cos((daylightElapsed / DAY_CYCLE_MS + startPhase) * Math.PI * 2)) / 2;
+  }
+
+  function drawSkyLighting() {
+    const night = nightAmount();
+    if (night < 0.001) return;
+    const twilight = Math.sin(night * Math.PI) * 0.22;
+    ctx.save();
+    if (twilight > 0.001) {
+      const sunset = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+      sunset.addColorStop(0, 'rgba(114, 94, 150, 0)');
+      sunset.addColorStop(1, 'rgba(255, 137, 89, 0.7)');
+      ctx.globalAlpha = twilight;
+      ctx.fillStyle = sunset;
+      ctx.fillRect(0, 0, LOGICAL_W, GROUND_Y);
+    }
+    const sky = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+    sky.addColorStop(0, '#172b4d');
+    sky.addColorStop(0.65, '#455b80');
+    sky.addColorStop(1, '#b58d91');
+    ctx.globalAlpha = night * 0.92;
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, LOGICAL_W, GROUND_Y);
+
+    // Stable positions and gentle twinkling avoid distracting flicker.
+    for (let i = 0; night > 0.02 && i < 34; i++) {
+      const x = (i * 173.7 + 29) % LOGICAL_W;
+      const y = 12 + (i * 73.3) % 145;
+      const twinkle = 0.65 + 0.35 * Math.sin(daylightElapsed * 0.0015 + i * 2);
+      ctx.globalAlpha = night * night * twinkle * 0.8;
+      ctx.fillStyle = '#fff9e6';
+      ctx.beginPath();
+      ctx.arc(x, y, i % 7 === 0 ? 1.5 : 0.9, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = night * night * 0.9;
+    const glow = ctx.createRadialGradient(LOGICAL_W - 112, 65, 10, LOGICAL_W - 112, 65, 65);
+    glow.addColorStop(0, 'rgba(255, 247, 214, 0.3)');
+    glow.addColorStop(1, 'rgba(255, 247, 214, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(LOGICAL_W - 177, 0, 130, 130);
+    ctx.fillStyle = '#fff4d2';
+    ctx.beginPath();
+    ctx.arc(LOGICAL_W - 112, 65, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawWorldLighting() {
+    ctx.save();
+    ctx.globalAlpha = nightAmount() * 0.18;
+    ctx.fillStyle = '#273b67';
+    ctx.fillRect(0, GROUND_Y, LOGICAL_W, LOGICAL_H - GROUND_Y);
+    ctx.restore();
+  }
+
   let audioCtx = null;
   function ensureAudio() {
     if (!audioCtx) {
@@ -764,7 +840,35 @@
 
   let effectTimers = { jump: 0, speed: 0 };
 
+  // Cosmetic feedback only: fixed limits keep rapid pickups from accumulating.
+  const DINO_FEEDBACK = { particleLimit: 24, particleLife: 260, soundVariation: 0.035, landingVolume: 0.025 };
+  let dinoParticles = [];
+  function emitDinoFeedback(x, y, color, count, upward = true) {
+    for (let i = 0; i < count; i++) {
+      if (dinoParticles.length >= DINO_FEEDBACK.particleLimit) dinoParticles.shift();
+      const angle = (Math.PI * 2 * i / count) + 0.2;
+      dinoParticles.push({ x, y, vx: Math.cos(angle) * 1.4, vy: Math.sin(angle) * 1.4 - (upward ? 0.6 : 0), age: 0, color });
+    }
+  }
+  function drawDinoFeedback(dtMs) {
+    ctx.save();
+    for (const p of dinoParticles) {
+      p.age += dtMs;
+      p.x += p.vx * dtMs / 16.667;
+      p.y += p.vy * dtMs / 16.667;
+      ctx.globalAlpha = Math.max(0, 1 - p.age / DINO_FEEDBACK.particleLife);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+    }
+    ctx.restore();
+    dinoParticles = dinoParticles.filter(p => p.age < DINO_FEEDBACK.particleLife);
+  }
+  function feedbackPitch(freq) {
+    return freq * (1 + (Math.random() * 2 - 1) * DINO_FEEDBACK.soundVariation);
+  }
+
   function resetDino() {
+    daylightElapsed = 0;
     dino.y = GROUND_Y - STAND_H;
     dino.vy = 0;
     dino.width = STAND_W;
@@ -772,6 +876,7 @@
     dino.state = 'run';
     dino.duckHeld = false;
     effectTimers = { jump: 0, speed: 0 };
+    dinoParticles = [];
     collisionGraceStartedAt = -Infinity;
   }
 
@@ -785,7 +890,8 @@
       dino.state = 'jump';
       dino.width = STAND_W;
       dino.height = STAND_H;
-      beep(720, 0.08, 'square', 0.04);
+      emitDinoFeedback(dino.x + dino.width / 2, GROUND_Y - 2, '#fff3b0', 5);
+      beep(feedbackPitch(720), 0.08, 'square', 0.04);
     }
   }
 
@@ -812,6 +918,8 @@
       dino.vy += g * dt;
       dino.y += dino.vy * dt;
       if (dino.y >= GROUND_Y - STAND_H) {
+        emitDinoFeedback(dino.x + dino.width / 2, GROUND_Y - 2, '#fff3b0', 5);
+        beep(feedbackPitch(260), 0.045, 'sine', DINO_FEEDBACK.landingVolume);
         dino.y = GROUND_Y - STAND_H;
         dino.vy = 0;
         dino.state = dino.duckHeld ? 'duck' : 'run';
@@ -1335,7 +1443,7 @@
     if (type === 'coin') {
       coinCount += 1;
       score += 20;
-      beep(880, 0.07, 'sine', 0.06);
+      beep(feedbackPitch(880), 0.07, 'sine', 0.06);
     } else if (type === 'jump-boost') {
       effectTimers.jump = 4000; 
       beep(600, 0.1, 'sine', 0.1); 
@@ -1406,6 +1514,8 @@
   }
 
   function endGame() {
+    if (gameState !== 'running') return;
+    emitDinoFeedback(dino.x + dino.width / 2, dino.y + dino.height / 2, '#f59e0b', 9, false);
     gameState = 'gameover';
     highScore = Math.max(highScore, score);
     updateReadouts();
@@ -1540,6 +1650,9 @@
     drawBackground(timestamp);
     ctx.restore();
 
+    if (gameState === 'running') daylightElapsed += Math.max(0, Math.min(dtRealMs, 50));
+    drawSkyLighting();
+
     if (gameState === 'running') {
       if (effectTimers.jump > 0) effectTimers.jump -= dtRealMs;
       if (effectTimers.speed > 0) effectTimers.speed -= dtRealMs;
@@ -1574,6 +1687,7 @@
         }
         if (!it.collected && rectsOverlap(dHitbox, it)) {
           it.collected = true;
+          emitDinoFeedback(it.x + it.width / 2, it.y + it.height / 2, it.type === 'coin' ? '#fbbf24' : it.type === 'jump-boost' ? '#4ADE80' : '#60A5FA', 6);
           applyItemEffect(it.type);
         }
       }
@@ -1602,10 +1716,13 @@
     }
 
     drawGround(timestamp);
+    drawWorldLighting();
     drawItems(timestamp);
     obstacles.forEach(drawObstacle);
-    drawDino(); 
-    
+    drawDino();
+    if (gameState === 'paused' || gameState === 'idle' || gameState === 'disposed') dinoParticles = [];
+    else drawDinoFeedback(Math.max(0, Math.min(dtRealMs, 50)));
+
     if (gameState === 'running') drawEffectsUI();
     // Keep the collection goal visible without revealing any protection timer.
     ctx.save();
