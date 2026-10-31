@@ -594,7 +594,7 @@
                     this.isWireAttached = false;
                     // [수정] 와이어에서 떨어질 때 다음 발판에 무조건 닿을 수 있도록 전진 관성과 띄우는 힘 대폭 증가
                     this.vy = -14.5;
-                    this.vx = 14.5;
+                    this.vx = 28;
                     this.lastWireTarget = this.wireTarget; // 연속 재장착 방지용 저장
                     this.wireTarget = null;
                     this.jumpCount = 2;
@@ -830,10 +830,10 @@
 
         function generateNextRooftop(startX) {
             let isWideGap = Math.random() < 0.45;
-            // 감속 후에도 점프와 와이어로 건널 수 있는 거리로 유지한다.
-            let gap = isWideGap ? Math.floor(240 + Math.random() * 61) : Math.floor(95 + Math.random() * 16);
+            // 와이어 구간은 최대 속도에서 늦게 점프해도 건널 수 없게 한다.
+            let gap = isWideGap ? Math.floor(480 + Math.random() * 21) : Math.floor(95 + Math.random() * 16);
             const previousPole = wirePoles[wirePoles.length - 1];
-            if (isWideGap && previousPole && startX + gap * 0.45 - previousPole.x < MIN_POLE_SPACING) {
+            if (isWideGap && previousPole && startX + gap * 0.65 - previousPole.x < MIN_POLE_SPACING) {
                 // A wide gap always needs a pole, so use a jumpable gap here instead.
                 isWideGap = false;
                 gap = Math.floor(95 + Math.random() * 16);
@@ -854,7 +854,7 @@
             let currentPoleY = 50; // 동전 생성 위치 계산에 맞추기 위해 선언
 
             if (isWideGap) {
-                let poleX = startX + gap * 0.45;
+                let poleX = startX + gap * 0.65;
                 // [수정] 와이어 고리(Pole)의 위치가 낮게 생성되지 않게 화면 최상단(40~70)으로 안전하게 고정
                 currentPoleY = 40 + Math.floor(Math.random() * 30); 
                 wirePoles.push({

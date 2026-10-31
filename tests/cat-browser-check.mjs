@@ -33,7 +33,7 @@ try {
       const oldPoleCount=wirePoles.length;
       const nextEdge=generateNextRooftop(edge);
       const roof=rooftops[rooftops.length-1];
-      gaps.push({gap:roof.x-edge, poles:wirePoles.length-oldPoleCount});
+      gaps.push({gap:roof.x-edge, poles:wirePoles.length-oldPoleCount, poleX:wirePoles.length>oldPoleCount ? wirePoles[wirePoles.length-1].x-edge : null});
       edge=nextEdge;
     }
     const poleXs=wirePoles.map(pole=>pole.x);
@@ -44,7 +44,7 @@ try {
   const wideGaps = generated.gaps.filter(item => item.gap >= 240);
   assert(shortGaps.length && wideGaps.length, 'both jump and wire gaps are generated');
   assert(shortGaps.every(item => item.gap >= 95 && item.gap <= 110 && item.poles === 0), 'jump gaps remain at least 95px and within jumping range');
-  assert(wideGaps.every(item => item.gap <= 300 && item.poles === 1), 'each wide gap has exactly one wire pole');
+  assert(wideGaps.every(item => item.gap >= 480 && item.gap <= 500 && item.poles === 1 && Math.abs(item.poleX - item.gap * .65) < 1e-9), 'each wire gap is 480–500px with one pole at 65%');
   assert(generated.poleXs.every((x, i, xs) => i === 0 || x - xs[i - 1] >= 840), 'wire poles are separated by at least one screen plus their visible width');
   const wireLimits = await page.locator('iframe.source-game').evaluate(frame => frame.contentWindow.eval(`(() => {
     cameraX=0; cat.reset(); cat.y=200; cat.isGrounded=false;
@@ -66,7 +66,7 @@ try {
     api.command({ type: 'jump' });
     const attached = api.snapshot().wire;
     api.command({ type: 'jump' });
-    const detached = !api.snapshot().wire && run('cat.vy < 0 && cat.vx > 0');
+    const detached = !api.snapshot().wire && run('cat.vy < 0 && cat.vx === 28');
     run("score=0; combo=0; hostCoins=0; coins=[{x:cat.x+cameraX+cat.width/2,y:cat.y+cat.height/2,type:'gold',value:30,collected:false}]; checkCoinCollisions()");
     const pickup = api.snapshot();
     run('cameraX=0; rooftops=[{x:0,width:500,y:240}]; cat.x=150; cat.y=100; cat.vy=140; cat.vx=0; cat.isWireAttached=false; cat.update()');
@@ -74,7 +74,7 @@ try {
     return { attached, detached, pickup, landing };
   });
   assert(mechanics.attached, 'wire attaches to a forward pole');
-  assert(mechanics.detached, 'second jump releases wire and grants forward/upward motion');
+  assert(mechanics.detached, 'second jump releases wire and grants the intended forward/upward motion');
   assert.equal(mechanics.pickup.coins, 1);
   assert.equal(mechanics.pickup.score, 32, 'coin plus first combo bonus');
   assert.equal(mechanics.pickup.combo, 1);
@@ -123,12 +123,48 @@ try {
       }
       return {landed, attached, x:cameraX+cat.x, y:cat.y};
     }
-    const result = {short:cross(110,false), wide:cross(300,true)};
+    const result = {short:cross(110,false)};
     hostPractice=true; gameState='PLAYING'; window.isRightArmExtended=false;
     return result;
   })()`));
   assert(crossings.short.landed, `maximum short gap can be jumped onto the higher roof: ${JSON.stringify(crossings.short)}`);
-  assert(crossings.wide.attached && crossings.wide.landed, `maximum wide gap can be crossed by wire: ${JSON.stringify(crossings.wide)}`);
+  const wireCrossings = await page.locator('iframe.source-game').evaluate(frame => frame.contentWindow.eval(`(() => {
+    const api=window.motionGame;
+    function setup(gap, startY, endY, speed, beforeEdge) {
+      hostPractice=false; gameState='PLAYING'; gameSpeed=speed; frameCount=0;
+      hostAccumulator=0; hostClearCoyote();
+      cameraX=700-beforeEdge-150; cat.reset(); cat.y=startY-cat.height; cat.isGrounded=true;
+      rooftops=[{x:0,width:700,y:startY},{x:700+gap,width:500,y:endY},{x:2500,width:500,y:endY}];
+      wirePoles=[{x:700+gap*.65,y:55}]; coins=[];
+    }
+    function wireCross(gap, startY, endY, speed, beforeEdge) {
+      setup(gap,startY,endY,speed,beforeEdge); window.isRightArmExtended=true; cat.jump();
+      let attached=false, landed=false;
+      for(let i=0;i<180 && gameState==='PLAYING';i++) {
+        updateGame(); attached ||= cat.isWireAttached;
+        if(cat.isGrounded && cameraX+cat.x >= 700+gap-cat.width*.3) { landed=true; break; }
+      }
+      return {gap,startY,endY,speed,beforeEdge,attached,landed,x:cameraX+cat.x,y:cat.y};
+    }
+    const results=[];
+    for(const gap of [480,500]) for(const [startY,endY] of [[250,339],[339,250],[250,250],[339,339]])
+      for(const speed of [4.3,7]) for(const beforeEdge of [10,40]) results.push(wireCross(gap,startY,endY,speed,beforeEdge));
+    setup(480,250,339,7,7); window.isRightArmExtended=false;
+    api.advance(1/60);
+    while(cat.isGrounded) api.advance(1/60);
+    for(let i=0;i<8;i++) api.advance(1/60);
+    const coyoteRemaining=hostCoyote, jumped=api.motionJump();
+    let landed=false;
+    for(let i=0;i<180 && gameState==='PLAYING';i++) {
+      api.advance(1/60);
+      if(cat.isGrounded && cameraX+cat.x >= 1180-cat.width*.3) { landed=true; break; }
+    }
+    const normal={jumped,coyoteRemaining,landed,x:cameraX+cat.x,y:cat.y};
+    hostPractice=true; gameState='PLAYING'; window.isRightArmExtended=false;
+    return {results,normal};
+  })()`));
+  assert(wireCrossings.normal.jumped && wireCrossings.normal.coyoteRemaining > 0 && !wireCrossings.normal.landed, `latest coyote jump cannot cross the shortest wire gap: ${JSON.stringify(wireCrossings.normal)}`);
+  assert(wireCrossings.results.every(result => result.attached && result.landed), `wire gaps are crossable across speeds, heights and jump positions: ${JSON.stringify(wireCrossings.results.filter(result => !result.attached || !result.landed))}`);
   await button('연습 완료 · 게임 시작').click();
   await page.locator('.countdown').waitFor({ state: 'hidden' });
   await page.waitForFunction(() => document.querySelector('iframe.source-game').contentWindow.motionGame.snapshot().distance > 0);
